@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  h2:
+    console:
+      enabled: true
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      rag:
+        model: qwen2.5 # kolayca değiştirilebilsin
+        keep-alive: 30m # model belleğe yüklü kalsın, her istekte reload olmasın
+
+      chat:
+        options:
+          model: qwen2.5
+
+      embedding:
+        options:
+          model: nomic-embed-text
+
+chroma:
+  base-url: http://[::1]:8000
+  tenant-id: default_tenant
+  database: default_database
+  collection: 1d49b1a8-edbb-4e17-9187-f03fdcda7547
+  distance-threshold: 9999.0

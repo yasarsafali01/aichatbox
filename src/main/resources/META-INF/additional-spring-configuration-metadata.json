@@ -1,0 +1,34 @@
+{
+  "properties": [
+    {
+      "name": "chroma.initial-topics",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of topics pre-loaded into the RAG system."
+    },
+    {
+      "name": "chroma.base-url",
+      "type": "java.lang.String",
+      "description": "ChromaDB base URL."
+    },
+    {
+      "name": "chroma.tenant-id",
+      "type": "java.lang.String",
+      "description": "ChromaDB tenant ID."
+    },
+    {
+      "name": "chroma.database",
+      "type": "java.lang.String",
+      "description": "ChromaDB database name."
+    },
+    {
+      "name": "chroma.collection",
+      "type": "java.lang.String",
+      "description": "ChromaDB collection name."
+    },
+    {
+      "name": "chroma.distance-threshold",
+      "type": "java.lang.Double",
+      "description": "Maximum distance for a ChromaDB result to be considered relevant."
+    }
+  ]
+}
