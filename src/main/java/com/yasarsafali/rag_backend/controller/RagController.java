@@ -1,5 +1,6 @@
 package com.yasarsafali.rag_backend.controller;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -7,7 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.yasarsafali.rag_backend.service.PdfIngestionService;
+import com.yasarsafali.rag_backend.service.BulkIngestionService;
+import com.yasarsafali.rag_backend.service.DocumentIngestionService;
 import com.yasarsafali.rag_backend.service.RagService;
 
 @RestController
@@ -15,11 +17,15 @@ import com.yasarsafali.rag_backend.service.RagService;
 public class RagController {
 
     private final RagService service;
-    private final PdfIngestionService pdfIngestionService;
+    private final DocumentIngestionService documentIngestionService;
+    private final BulkIngestionService bulkIngestionService;
 
-    public RagController(RagService service, PdfIngestionService pdfIngestionService) {
+    public RagController(RagService service,
+                          DocumentIngestionService documentIngestionService,
+                          BulkIngestionService bulkIngestionService) {
         this.service = service;
-        this.pdfIngestionService = pdfIngestionService;
+        this.documentIngestionService = documentIngestionService;
+        this.bulkIngestionService = bulkIngestionService;
     }
 
     @PostMapping("/add")
@@ -36,7 +42,18 @@ public class RagController {
 
     @PostMapping("/load-pdf")
     public String loadPdf(@RequestParam String path) {
-        int chunks = pdfIngestionService.ingest(path);
+        int chunks = documentIngestionService.ingest(path);
         return chunks + " chunk ChromaDB'ye yüklendi.";
+    }
+
+    @PostMapping("/load-folder")
+    public String loadFolder(@RequestParam String path) {
+        boolean started = bulkIngestionService.start(path);
+        return started ? "Toplu yükleme başlatıldı." : "Zaten devam eden bir yükleme var.";
+    }
+
+    @GetMapping("/load-status")
+    public Object loadStatus() {
+        return bulkIngestionService.status();
     }
 }
