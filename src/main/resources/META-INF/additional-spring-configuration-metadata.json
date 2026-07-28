@@ -49,6 +49,16 @@
       "name": "locate.max-results",
       "type": "java.lang.Integer",
       "description": "Number of nearest chunks to fetch from Chroma per /locate query."
+    },
+    {
+      "name": "security.api-key.chroma",
+      "type": "java.lang.String",
+      "description": "Required X-API-Key value for endpoints that go through Chroma (/rag/*, /locate/*)."
+    },
+    {
+      "name": "security.api-key.admin",
+      "type": "java.lang.String",
+      "description": "Required X-API-Key value for all other endpoints."
     }
   ]
 }
