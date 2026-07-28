@@ -33,5 +33,5 @@ chroma:
   base-url: http://[::1]:8000
   tenant-id: default_tenant
   database: default_database
-  collection: 68274daa-2b09-43ad-8e3e-f8a3fc38716b
+  collection: f1c00b53-82dc-4aaf-ada5-296dbb880219
   distance-threshold: 9999.0

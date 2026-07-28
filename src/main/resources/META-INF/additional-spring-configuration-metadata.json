@@ -29,6 +29,26 @@
       "name": "chroma.distance-threshold",
       "type": "java.lang.Double",
       "description": "Maximum distance for a ChromaDB result to be considered relevant."
+    },
+    {
+      "name": "locate.chroma.collection",
+      "type": "java.lang.String",
+      "description": "ChromaDB collection ID used for page-level PDF locate index."
+    },
+    {
+      "name": "locate.pdf.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL prefix (file server address) the /locate endpoint prepends to a PDF's file name."
+    },
+    {
+      "name": "locate.distance-threshold",
+      "type": "java.lang.Double",
+      "description": "Maximum distance for a /locate result to be considered relevant."
+    },
+    {
+      "name": "locate.max-results",
+      "type": "java.lang.Integer",
+      "description": "Number of nearest chunks to fetch from Chroma per /locate query."
     }
   ]
 }
