@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.yasarsafali.rag_backend.dto.quote.Brans;
-import com.yasarsafali.rag_backend.service.ocr.FieldExtractor;
 import com.yasarsafali.rag_backend.service.ocr.OcrService;
 
 @RestController
@@ -19,31 +17,17 @@ import com.yasarsafali.rag_backend.service.ocr.OcrService;
 public class OcrController {
 
     private final OcrService ocrService;
-    private final FieldExtractor fieldExtractor;
 
-    public OcrController(OcrService ocrService, FieldExtractor fieldExtractor) {
+    public OcrController(OcrService ocrService) {
         this.ocrService = ocrService;
-        this.fieldExtractor = fieldExtractor;
     }
 
-    public record OcrResponse(Map<String, String> fields, String rawTextPreview) {
+    public record OcrResponse(String text) {
     }
 
     @PostMapping(value = "/extract", consumes = "multipart/form-data")
-    public OcrResponse extract(@RequestParam("file") MultipartFile file, @RequestParam Brans brans) {
-        String rawText;
-        try {
-            rawText = ocrService.extractText(file);
-        } catch (Throwable e) {
-            // Belge okunamasa (Tesseract native hatası dahil) bile akış soru sormadan
-            // tamamlanabilsin diye FieldExtractor'ın varsayılan değerlerine düşülür.
-            rawText = "";
-        }
-        Map<String, String> fields = fieldExtractor.extract(brans, rawText);
-        String preview = rawText.isBlank()
-                ? "Belgeden metin okunamadı, alanlar tahmini değerlerle dolduruldu."
-                : (rawText.length() > 300 ? rawText.substring(0, 300) + "..." : rawText);
-        return new OcrResponse(fields, preview);
+    public OcrResponse extract(@RequestParam("file") MultipartFile file) {
+        return new OcrResponse(ocrService.extractText(file));
     }
 
     @ExceptionHandler(RuntimeException.class)

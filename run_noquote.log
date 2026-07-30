@@ -1,0 +1,22 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.6)
+
+2026-07-29T14:16:01.479+03:00  INFO 29264 --- [           main] c.y.rag_backend.RagBackendApplication    : Starting RagBackendApplication using Java 21.0.10 with PID 29264 (C:\Users\user80\Desktop\aichatbox\target\classes started by user80 in C:\Users\user80\Desktop\aichatbox)
+2026-07-29T14:16:01.481+03:00  INFO 29264 --- [           main] c.y.rag_backend.RagBackendApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-07-29T14:16:02.073+03:00  INFO 29264 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-07-29T14:16:02.080+03:00  INFO 29264 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-07-29T14:16:02.080+03:00  INFO 29264 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.21]
+2026-07-29T14:16:02.116+03:00  INFO 29264 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 611 ms
+2026-07-29T14:16:02.493+03:00  INFO 29264 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-07-29T14:16:02.496+03:00  INFO 29264 --- [           main] c.y.rag_backend.RagBackendApplication    : Started RagBackendApplication in 1.261 seconds (process running for 1.485)
+2026-07-29T14:16:53.746+03:00  INFO 29264 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-07-29T14:16:53.746+03:00  INFO 29264 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-07-29T14:16:53.747+03:00  INFO 29264 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-07-29T14:17:02.662+03:00  WARN 29264 --- [nio-8080-exec-6] org.apache.pdfbox.pdfparser.PDFParser    : Error: Header doesn't contain versioninfo

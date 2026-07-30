@@ -27,7 +27,11 @@ public class OllamaClient {
                         "model", model,
                         "prompt", prompt,
                         "stream", false,
-                        "keep_alive", keepAlive
+                        "keep_alive", keepAlive,
+                        "options", Map.of(
+                                "temperature", 0,
+                                "seed", 42
+                        )
                 ))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})

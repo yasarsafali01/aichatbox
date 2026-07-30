@@ -34,4 +34,4 @@ chroma:
   tenant-id: default_tenant
   database: default_database
   collection: f1c00b53-82dc-4aaf-ada5-296dbb880219
-  distance-threshold: 9999.0
+  distance-threshold: 220.0
