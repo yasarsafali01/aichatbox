@@ -21,6 +21,7 @@ spring:
         model: qwen2.5 # kolayca değiştirilebilsin
         keep-alive: 30m # model belleğe yüklü kalsın, her istekte reload olmasın
         think: false # qwen3/deepseek-r1 gibi "thinking" modellerinde akıl yürütme adımını açar/kapatır
+        timeout-seconds: 180 # yanıt üretme çağrısı için timeout
 
       chat:
         options:

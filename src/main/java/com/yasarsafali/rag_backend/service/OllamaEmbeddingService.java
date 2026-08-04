@@ -1,5 +1,6 @@
 package com.yasarsafali.rag_backend.service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,15 +15,18 @@ public class OllamaEmbeddingService {
 
     private final String baseUrl;
     private final String model;
+    private final int timeoutSeconds;
     private final WebClient webClient;
 
     public OllamaEmbeddingService(
             WebClient.Builder builder,
-            @Value("${spring.ai.ollama.base-url:http://localhost:11434}") String baseUrl,
-            @Value("${spring.ai.ollama.embedding.options.model:nomic-embed-text}") String model
+            @Value("${spring.ai.ollama.base-url}") String baseUrl,
+            @Value("${spring.ai.ollama.embedding.options.model:nomic-embed-text}") String model,
+            @Value("${spring.ai.ollama.embedding.timeout-seconds:60}") int timeoutSeconds
     ) {
         this.baseUrl = baseUrl;
         this.model = model;
+        this.timeoutSeconds = timeoutSeconds;
         this.webClient = builder.build();
     }
 
@@ -43,6 +47,7 @@ public class OllamaEmbeddingService {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .block();
 
         @SuppressWarnings("unchecked")

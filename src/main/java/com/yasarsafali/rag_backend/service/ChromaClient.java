@@ -1,5 +1,6 @@
 package com.yasarsafali.rag_backend.service;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,9 @@ public class ChromaClient {
 
     @Value("${chroma.collection}")
     private String collection;
+
+    @Value("${chroma.timeout-seconds:30}")
+    private int timeoutSeconds;
 
     private final WebClient webClient;
 
@@ -56,6 +60,7 @@ public class ChromaClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .block();
     }
 
@@ -76,6 +81,7 @@ public class ChromaClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .block();
     }
 
@@ -102,6 +108,7 @@ public class ChromaClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .block();
 
         if (response == null) return new QueryResult(List.of(), List.of());

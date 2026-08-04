@@ -14,7 +14,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.yasarsafali.rag_backend.dto.external.ExternalDocumentChange;
 import com.yasarsafali.rag_backend.dto.external.ExternalDocumentsChangesResponse;
 import com.yasarsafali.rag_backend.service.DocumentIngestionService;
@@ -117,7 +120,27 @@ public class ExternalDocumentSyncService {
         }
 
         try {
-            return objectMapper.readValue(file, new TypeReference<List<ExternalDocumentChange>>() {});
+            JsonNode root = objectMapper.readTree(file);
+            if (!(root instanceof ArrayNode array)) {
+                throw new IllegalArgumentException("Dosya bir JSON dizisi (array) olmalı");
+            }
+
+            // Bazı dışa aktarma araçları birim_name'i {"tr":"...","en":"..."}
+            // yerine bunun JSON-string'e kaçışlanmış halini yazıyor. Jackson
+            // bunu doğrudan Map'e çeviremediği için, DTO'ya (ExternalDocumentChange)
+            // dokunmadan burada, sadece dosyadan-içe-aktarma yolunda düzeltiyoruz.
+            for (JsonNode node : array) {
+                if (node instanceof ObjectNode obj) {
+                    JsonNode birimName = obj.get("birim_name");
+                    if (birimName != null && birimName.isString()) {
+                        obj.set("birim_name", objectMapper.readTree(birimName.asString()));
+                    }
+                }
+            }
+
+            return objectMapper.convertValue(array, new TypeReference<List<ExternalDocumentChange>>() {});
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("JSON okunamadı: " + e.getMessage(), e);
         }

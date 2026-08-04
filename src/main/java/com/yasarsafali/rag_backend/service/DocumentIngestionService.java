@@ -24,14 +24,11 @@ public class DocumentIngestionService {
 
     private final OllamaEmbeddingService embeddingService;
     private final ChromaClient chromaClient;
-    private final TopicRegistry topicRegistry;
 
     public DocumentIngestionService(OllamaEmbeddingService embeddingService,
-                                     ChromaClient chromaClient,
-                                     TopicRegistry topicRegistry) {
+                                     ChromaClient chromaClient) {
         this.embeddingService = embeddingService;
         this.chromaClient = chromaClient;
-        this.topicRegistry = topicRegistry;
     }
 
     public static boolean isSupported(File file) {
@@ -76,8 +73,6 @@ public class DocumentIngestionService {
             chunkIndex++;
         }
 
-        String topicName = item.originalName().replaceFirst("\\.[^.]+$", "");
-        topicRegistry.register(topicName);
         return chunkIndex;
     }
 

@@ -3,6 +3,7 @@ package com.yasarsafali.rag_backend.service.external;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -23,6 +24,12 @@ public class ExternalApiClient {
     @Value("${external-api.api-key}")
     private String apiKey;
 
+    @Value("${external-api.request-timeout-seconds:30}")
+    private int requestTimeoutSeconds;
+
+    @Value("${external-api.download-timeout-seconds:120}")
+    private int downloadTimeoutSeconds;
+
     private final WebClient webClient;
 
     public ExternalApiClient(WebClient.Builder builder) {
@@ -35,12 +42,15 @@ public class ExternalApiClient {
                 .header("X-API-Key", apiKey)
                 .retrieve()
                 .bodyToMono(ExternalDocumentsChangesResponse.class)
+                .timeout(Duration.ofSeconds(requestTimeoutSeconds))
                 .block();
     }
 
     // =========================
     // Dosyayı cdn_url'den indirip geçici dosyaya yazar (büyük dosyalarda
-    // bellekte tutmamak için akış olarak yazılır)
+    // bellekte tutmamak için akış olarak yazılır). CDN yavaş/takılırsa
+    // sonsuza kadar beklememesi için timeout var; süre aşımında dosya
+    // "failed" sayılır, çağıran thread bloke olmadan devam eder.
     // =========================
     public File download(String downloadUrl, String originalName) {
         File temp;
@@ -55,8 +65,14 @@ public class ExternalApiClient {
                 .retrieve()
                 .bodyToFlux(DataBuffer.class);
 
-        DataBufferUtils.write(body, temp.toPath(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
-                .block();
+        try {
+            DataBufferUtils.write(body, temp.toPath(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+                    .timeout(Duration.ofSeconds(downloadTimeoutSeconds))
+                    .block();
+        } catch (RuntimeException e) {
+            temp.delete();
+            throw new RuntimeException("Dosya indirilemedi (" + downloadTimeoutSeconds + "s timeout): " + originalName, e);
+        }
 
         return temp;
     }

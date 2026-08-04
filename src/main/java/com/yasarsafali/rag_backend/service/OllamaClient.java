@@ -1,5 +1,6 @@
 package com.yasarsafali.rag_backend.service;
 
+import java.time.Duration;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +22,10 @@ public class OllamaClient {
     @Value("${spring.ai.ollama.rag.think:false}")
     private boolean think;
 
-    public OllamaClient(@Value("${spring.ai.ollama.base-url:http://localhost:11434}") String baseUrl) {
+    @Value("${spring.ai.ollama.rag.timeout-seconds:180}")
+    private int timeoutSeconds;
+
+    public OllamaClient(@Value("${spring.ai.ollama.base-url}") String baseUrl) {
         this.client = WebClient.create(baseUrl);
     }
 
@@ -47,6 +51,7 @@ public class OllamaClient {
                 ))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .block();
 
         if (res == null) return "";
