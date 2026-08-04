@@ -16,7 +16,7 @@ Uygulama aşağıdaki bileşenlerden oluşur:
 | H2 (in-memory) | İlişkisel veri (uygulama içinde gömülü) | — |
 | Tesseract OCR | Görsel belgelerden metin çıkarımı | — |
 
-Uygulamanın ne iş yaptığına ve iç işleyişine dair ayrıntılı anlatım için bkz. **[PROJE_MIMARISI.md](PROJE_MIMARISI.md)**.
+Uygulamanın ne iş yaptığına ve iç işleyişine dair ayrıntılı anlatım için bkz. **[README.md](README.md)**.
 
 > Not: H2 bellek-içi (in-memory) çalıştığı için ayrı bir kurulum gerektirmez, ancak **uygulama her yeniden başladığında veriler sıfırlanır**.
 
@@ -102,7 +102,7 @@ curl -s http://localhost:8000/api/v2/heartbeat
 
 ### 3.2 Koleksiyonları Oluşturma (ÖNEMLİ)
 
-aichatbox iki farklı amaç için **iki ayrı Chroma koleksiyonu** kullanır (bkz. PROJE_MIMARISI.md § 4):
+aichatbox iki farklı amaç için **iki ayrı Chroma koleksiyonu** kullanır (bkz. README.md § 4):
 
 1. **Genel RAG koleksiyonu** — `application.yml` → `chroma.collection`
 2. **Konum bulma (locate) koleksiyonu** — `application.properties` → `locate.chroma.collection`
@@ -232,7 +232,7 @@ external-api.page-size=100
 
 > **Not — cursor kalıcılığı:** Senkronizasyon cursor'ı (`next_cursor`) yalnızca bellekte tutulur (H2 gibi kalıcı değildir). Uygulama yeniden başlatıldığında `external-api.initial-since` değerinden itibaren tekrar taranır; bu, `documentId` bazlı idempotent upsert/delete sayesinde güvenlidir (aynı kayıt tekrar işlense de veri bozulmaz) ancak gereksiz yeniden işleme anlamına gelir.
 
-> **Not — metadata:** External API yanıtındaki tüm alanlar (`birim_id`, `birim_name`, `file_type`, `updated_at` vb.) her chunk ile birlikte Chroma metadata'sına yazılır, ileride bu alanlara göre filtreleme yapılabilsin diye. Tam şema için bkz. [PROJE_MIMARISI.md § 3.6](PROJE_MIMARISI.md#36-chroma-metadata-şeması-rag--locate-ortak).
+> **Not — metadata:** External API yanıtındaki tüm alanlar (`birim_id`, `birim_name`, `file_type`, `updated_at` vb.) her chunk ile birlikte Chroma metadata'sına yazılır, ileride bu alanlara göre filtreleme yapılabilsin diye. Tam şema için bkz. [README.md § 3.6](README.md#36-chroma-metadata-şeması-rag--locate-ortak).
 
 ---
 
