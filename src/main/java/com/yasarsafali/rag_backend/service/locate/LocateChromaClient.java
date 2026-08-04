@@ -56,6 +56,26 @@ public class LocateChromaClient {
                 .block();
     }
 
+    // =========================
+    // DELETE (belge bazlı temizlik - documentId metadata'sına göre)
+    // =========================
+    public Object delete(String documentId) {
+        String url = baseUrl +
+                "/api/v2/tenants/" + tenantId +
+                "/databases/" + database +
+                "/collections/" + collection +
+                "/delete";
+
+        Map<String, Object> body = Map.of("where", Map.of("documentId", documentId));
+
+        return webClient.post()
+                .uri(url)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+    }
+
     public record QueryResult(List<String> documents, List<Double> distances, List<Map<String, Object>> metadatas) {}
 
     // =========================

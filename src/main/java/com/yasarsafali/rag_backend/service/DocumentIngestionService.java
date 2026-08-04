@@ -3,14 +3,16 @@ package com.yasarsafali.rag_backend.service;
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.stereotype.Service;
+
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentChange;
 
 @Service
 public class DocumentIngestionService {
@@ -41,8 +43,13 @@ public class DocumentIngestionService {
         return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase();
     }
 
-    public int ingest(String filePath) {
-        File file = new File(filePath);
+    // =========================
+    // İndirilmiş dosyayı (External API kaydının tüm alanlarıyla) chunk'lara
+    // bölüp embed edip Chroma'ya yazar. Metadata, item.toMetadata() ile
+    // External API yanıtındaki tüm alanları taşır (ileride bu alanlara göre
+    // filtreleme yapılabilsin diye).
+    // =========================
+    public int ingest(File file, ExternalDocumentChange item) {
         String text;
 
         try (FileInputStream stream = new FileInputStream(file)) {
@@ -50,10 +57,10 @@ public class DocumentIngestionService {
             new AutoDetectParser().parse(stream, handler, new Metadata(), new ParseContext());
             text = handler.toString();
         } catch (Exception e) {
-            throw new RuntimeException("Belge işleme hatası: " + filePath, e);
+            throw new RuntimeException("Belge işleme hatası: " + item.originalName(), e);
         }
 
-        String fileId = UUID.randomUUID().toString().substring(0, 8);
+        Map<String, Object> metadata = item.toMetadata();
         int chunkIndex = 0;
         int start = 0;
 
@@ -65,12 +72,16 @@ public class DocumentIngestionService {
             if (chunk.length() < 30) continue;
 
             List<Float> embedding = embeddingService.embed(chunk);
-            chromaClient.add(fileId + "-c" + chunkIndex, chunk, embedding);
+            chromaClient.add(item.id() + "-c" + chunkIndex, chunk, embedding, metadata);
             chunkIndex++;
         }
 
-        String topicName = file.getName().replaceFirst("\\.[^.]+$", "");
+        String topicName = item.originalName().replaceFirst("\\.[^.]+$", "");
         topicRegistry.register(topicName);
         return chunkIndex;
+    }
+
+    public void deleteDocument(String documentId) {
+        chromaClient.delete(documentId);
     }
 }

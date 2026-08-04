@@ -204,12 +204,33 @@ cd aichatbox
 | `application.properties` | `ocr.tessdata-path` | Tesseract dil dosyaları yolu |
 | `application.properties` | `security.api-key.chroma` / `security.api-key.admin` | `/rag`, `/locate` ve diğer uçlar için API anahtarları (bkz. Bölüm 9) |
 | `application.properties` | `locate.chroma.collection` | Konum bulma koleksiyon ID'si |
-| `application.properties` | `locate.pdf.base-url` | İndekslenen dosyalara tıklanabilir bağlantı üretmek için taban yol (`file:///...`) |
+| `application.properties` | `external-api.base-url` / `external-api.api-key` | Kurum içi External API adresi ve erişim anahtarı (bkz. Bölüm 6.1) |
 | `application.yml` | `spring.ai.ollama.base-url` | Ollama servis adresi (chat/embedding) |
 | `application.yml` | `chroma.base-url` | ChromaDB adresi |
 | `application.yml` | `chroma.collection` | Genel RAG koleksiyon ID'si (Bölüm 3.2) |
 
-> **Güvenlik uyarısı:** `security.api-key.*` ve koleksiyon ID'leri repo içinde düz metin olarak tutulmaktadır. Üretim ortamına taşırken bu değerleri ortam değişkenleri (`SECURITY_API_KEY_CHROMA` vb.) veya bir secret manager üzerinden vermeniz önerilir.
+> **Güvenlik uyarısı:** `security.api-key.*`, `external-api.api-key` ve koleksiyon ID'leri repo içinde düz metin olarak tutulmaktadır. Üretim ortamına taşırken bu değerleri ortam değişkenleri (`SECURITY_API_KEY_CHROMA`, `EXTERNAL_API_API_KEY` vb.) veya bir secret manager üzerinden vermeniz önerilir.
+
+### 6.1 External API Yapılandırması (Doküman Kaynağı)
+
+aichatbox, indeksleyeceği belgeleri **yerel bir klasörden değil**, kurum içi bir HTTP API'den ([EXTERNAL_API_GUIDE.md](EXTERNAL_API_GUIDE.md)) çeker. `/sync/run` tetiklendiğinde `GET /documents/changes` ucu cursor tabanlı olarak taranır; her `upsert` kaydı `cdn_url`'den indirilip hem genel RAG hem de konum bulma koleksiyonuna işlenir, her `deleted` kaydı ise ilgili belgenin tüm chunk'larını Chroma'dan siler.
+
+```properties
+# src/main/resources/application.properties
+external-api.base-url=https://www2.mersin.edu.tr/api/external/v1
+external-api.api-key=<KURUMDAN_ALINAN_API_ANAHTARI>
+external-api.initial-since=1970-01-01T00:00:00Z
+external-api.page-size=100
+```
+
+| Anahtar | Açıklama |
+|---|---|
+| `external-api.base-url` | External API'nin taban adresi |
+| `external-api.api-key` | `X-API-Key` header'ında gönderilecek erişim anahtarı — **kurumdan temin edilmelidir**, repo boş gelir |
+| `external-api.initial-since` | İlk senkronizasyonda taranacak en eski `updated_at` (RFC3339); sonraki çalıştırmalarda uygulama içinde tutulan cursor kullanılır |
+| `external-api.page-size` | Her sayfada çekilecek kayıt sayısı (API tarafında 100 ile sınırlıdır) |
+
+> **Not — cursor kalıcılığı:** Senkronizasyon cursor'ı (`next_cursor`) yalnızca bellekte tutulur (H2 gibi kalıcı değildir). Uygulama yeniden başlatıldığında `external-api.initial-since` değerinden itibaren tekrar taranır; bu, `documentId` bazlı idempotent upsert/delete sayesinde güvenlidir (aynı kayıt tekrar işlense de veri bozulmaz) ancak gereksiz yeniden işleme anlamına gelir.
 
 ---
 
@@ -242,6 +263,13 @@ curl -X POST http://localhost:8080/rag/ask \
   -H "X-API-Key: <security.api-key.chroma değeri>" \
   -H "Content-Type: text/plain" \
   -d "Örnek soru?"
+```
+
+İlk veri yüklemesi için senkronizasyonu tetikleyin (bkz. Bölüm 6.1 — `external-api.api-key` doldurulmuş olmalı):
+
+```bash
+curl -X POST http://localhost:8080/sync/run -H "X-API-Key: <security.api-key.admin değeri>"
+curl http://localhost:8080/sync/status -H "X-API-Key: <security.api-key.admin değeri>"
 ```
 
 ---
@@ -295,19 +323,13 @@ Anahtar eksik/yanlışsa `401 Unauthorized` + `{"error":"Geçersiz veya eksik X-
 | `GET` | `/embed?text=...` | admin | Metni embedding vektörüne çevirir |
 | `POST` | `/rag/add` | chroma | Genel RAG koleksiyonuna tek metin ekler |
 | `POST` | `/rag/ask` | chroma | RAG tabanlı soru-cevap (LLM yanıtı üretir) |
-| `POST` | `/rag/load-pdf?path=...` | chroma | Tek dosyayı işleyip genel RAG koleksiyonuna yükler |
-| `POST` | `/rag/load-folder?path=...` | chroma | Klasördeki desteklenen dosyaları arka planda toplu yükler |
-| `GET` | `/rag/load-status` | chroma | Toplu yükleme ilerleme durumu |
 | `POST` | `/locate` | chroma | Soruya en yakın belge/sayfa konumlarını döner (LLM çağırmaz) |
-| `POST` | `/locate/index-pdf?path=...` | chroma | Tek dosyayı sayfa/paragraf/slayt bazlı indeksler |
-| `POST` | `/locate/index-folder?path=...` | chroma | Klasördeki desteklenen dosyaları arka planda toplu indeksler |
-| `GET` | `/locate/index-status` | chroma | Toplu indeksleme ilerleme durumu |
+| `POST` | `/sync/run` | admin | External API ile senkronizasyonu arka planda başlatır (upsert/delete) |
+| `GET` | `/sync/status` | admin | Senkronizasyon ilerleme durumu |
 | `POST` | `/ocr/extract` (multipart) | admin | Görsel/PDF'den OCR ile metin çıkarır |
 | `POST` | `/benchmark/run` | admin | Model karşılaştırma testleri çalıştırır |
 
-Desteklenen belge türleri (`/rag/*` ve `/locate/*`): `pdf, doc, docx, xls, xlsx, ppt, pptx`
-
-> **Encoding notu:** `path` parametresinde Türkçe karakter (ş, ğ, ı, ö, ü, ç) geçiyorsa, isteği gönderirken URL'nin **UTF-8** olarak yüzde-kodlanmış (percent-encoded) olduğundan emin olun. Aksi halde Tomcat `Character decoding failed` hatası verir.
+Desteklenen belge türleri (External API'den senkronize edilirken işlenir, diğerleri atlanır): `pdf, doc, docx, xls, xlsx, ppt, pptx`
 
 ---
 
@@ -317,11 +339,13 @@ Desteklenen belge türleri (`/rag/*` ve `/locate/*`): `pdf, doc, docx, xls, xlsx
 |---|---|---|
 | `Connection refused ... :8000` | ChromaDB çalışmıyor | `docker ps` ile kontrol edin, gerekiyorsa `docker start chromadb` |
 | `404 Collection ... does not exist` | `chroma.collection` / `locate.chroma.collection` geçersiz/eski ID | Bölüm 3.2'yi tekrarlayıp yeni ID'yi ilgili dosyaya yapıştırın |
-| `401 Unauthorized` | `X-API-Key` header eksik/yanlış | İlgili uç için doğru anahtarı (chroma/admin) gönderin |
+| `401 Unauthorized` (aichatbox'a atılan istekte) | `X-API-Key` header eksik/yanlış | İlgili uç için doğru anahtarı (chroma/admin) gönderin |
+| `/sync/status` içinde `lastError: "... 401 Unauthorized from GET .../documents/changes"` | `external-api.api-key` boş/yanlış | Bölüm 6.1 — kurumdan alınan gerçek anahtarı `application.properties`'e yazın ve uygulamayı yeniden başlatın |
 | `Port 8080 was already in use` | Önceki uygulama örneği hâlâ ayakta | `lsof -i:8080` ile PID bulup sonlandırın |
 | Embedding/chat istekleri çok yavaş | GPU yok, CPU üzerinde çıkarım | Beklenen davranış; uyumlu GPU + sürücü ekleyin veya daha küçük model kullanın |
 | OCR sonucu boş/hatalı | `tessdata-path` yanlış veya dil paketi eksik | Bölüm 5'i kontrol edin |
 | Yeniden başlatınca veriler kayboldu | H2 in-memory kullanılıyor | Kalıcı veri için `spring.datasource.url` kalıcı bir dosya/DB'ye yönlendirilmeli |
+| Yeniden başlatınca senkronizasyon baştan tarıyor | Sync cursor'ı bellekte tutulur, kalıcı değildir | Beklenen davranış (Bölüm 6.1 notu); upsert/delete `documentId` bazlı idempotent olduğundan veri bozulmaz |
 
 ---
 
@@ -340,6 +364,11 @@ docker run -d --name chromadb --restart unless-stopped -p 8000:8000 -v chroma-da
 
 # 4. İki koleksiyonu oluştur ve ID'leri application.yml / application.properties'e yapıştır (Bölüm 3.2)
 
-# 5. Uygulamayı başlat
+# 5. External API anahtarını application.properties'e yaz (Bölüm 6.1)
+
+# 6. Uygulamayı başlat
 ./mvnw spring-boot:run
+
+# 7. İlk senkronizasyonu tetikle
+curl -X POST http://localhost:8080/sync/run -H "X-API-Key: <security.api-key.admin değeri>"
 ```

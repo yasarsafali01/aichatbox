@@ -33,6 +33,10 @@ public class ChromaClient {
     // ADD DOCUMENT (embedding insert)
     // =========================
     public Object add(String id, String document, List<Float> embedding) {
+        return add(id, document, embedding, Map.of());
+    }
+
+    public Object add(String id, String document, List<Float> embedding, Map<String, Object> metadata) {
 
         String url = baseUrl +
                 "/api/v2/tenants/" + tenantId +
@@ -43,8 +47,29 @@ public class ChromaClient {
         Map<String, Object> body = Map.of(
                 "ids", List.of(id),
                 "documents", List.of(document),
-                "embeddings", List.of(embedding)
+                "embeddings", List.of(embedding),
+                "metadatas", List.of(metadata)
         );
+
+        return webClient.post()
+                .uri(url)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+    }
+
+    // =========================
+    // DELETE (belge bazlı temizlik - documentId metadata'sına göre)
+    // =========================
+    public Object delete(String documentId) {
+        String url = baseUrl +
+                "/api/v2/tenants/" + tenantId +
+                "/databases/" + database +
+                "/collections/" + collection +
+                "/delete";
+
+        Map<String, Object> body = Map.of("where", Map.of("documentId", documentId));
 
         return webClient.post()
                 .uri(url)

@@ -1,0 +1,25 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.6)
+
+2026-08-04T11:15:44.128+03:00  INFO 15980 --- [           main] c.y.rag_backend.RagBackendApplication    : Starting RagBackendApplication using Java 21.0.11 with PID 15980 (C:\Users\yaşar\Desktop\aichatbox\target\classes started by yaşar in C:\Users\yaşar\Desktop\aichatbox)
+2026-08-04T11:15:44.132+03:00  INFO 15980 --- [           main] c.y.rag_backend.RagBackendApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-08-04T11:15:45.625+03:00  INFO 15980 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 8080 (http)
+2026-08-04T11:15:45.641+03:00  INFO 15980 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-08-04T11:15:45.641+03:00  INFO 15980 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.21]
+2026-08-04T11:15:45.729+03:00  INFO 15980 --- [           main] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 1541 ms
+2026-08-04T11:15:46.641+03:00  INFO 15980 --- [           main] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 8080 (http) with context path '/'
+2026-08-04T11:15:46.650+03:00  INFO 15980 --- [           main] c.y.rag_backend.RagBackendApplication    : Started RagBackendApplication in 3.097 seconds (process running for 3.811)
+2026-08-04T11:15:47.748+03:00  INFO 15980 --- [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-08-04T11:15:47.748+03:00  INFO 15980 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-08-04T11:15:47.749+03:00  INFO 15980 --- [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-08-04T11:16:05.128+03:00  INFO 15980 --- [ternal-doc-sync] o.a.p.p.font.FileSystemFontProvider      : 192 new font files found, font cache will be re-built
+2026-08-04T11:16:05.128+03:00  INFO 15980 --- [ternal-doc-sync] o.a.p.p.font.FileSystemFontProvider      : Building on-disk font cache, this may take a while
+2026-08-04T11:16:07.970+03:00  INFO 15980 --- [ternal-doc-sync] o.a.p.p.font.FileSystemFontProvider      : Finished building on-disk font cache, found 358 fonts
+2026-08-04T11:19:30.830+03:00  WARN 15980 --- [ternal-doc-sync] o.a.pdfbox.pdmodel.font.PDSimpleFont     : Unknown encoding: SymbolSetEncoding

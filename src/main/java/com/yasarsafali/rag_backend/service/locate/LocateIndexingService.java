@@ -1,15 +1,13 @@
 package com.yasarsafali.rag_backend.service.locate;
 
 import java.io.File;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentChange;
 import com.yasarsafali.rag_backend.service.OllamaEmbeddingService;
 
 @Service
@@ -19,9 +17,6 @@ public class LocateIndexingService {
     private final PageChunker chunker;
     private final OllamaEmbeddingService embeddingService;
     private final LocateChromaClient chromaClient;
-
-    @Value("${locate.pdf.base-url}")
-    private String pdfBaseUrl;
 
     public LocateIndexingService(List<LocatableExtractor> extractors,
                                   PageChunker chunker,
@@ -33,21 +28,23 @@ public class LocateIndexingService {
         this.chromaClient = chromaClient;
     }
 
-    public boolean isSupported(File file) {
-        return extractors.stream().anyMatch(e -> e.supports(file));
-    }
-
-    public int ingest(String filePath) {
-        File file = new File(filePath);
+    // =========================
+    // İndirilmiş dosyayı (External API kaydının tüm alanlarıyla) sayfa/
+    // paragraf/slayt bazlı birimlere ayırıp, chunk'layıp Chroma'ya yazar.
+    // Metadata, item.toMetadata() ile External API yanıtındaki tüm alanları
+    // + title/location/url'i taşır (ileride bu alanlara göre filtreleme
+    // yapılabilsin diye).
+    // =========================
+    public int ingest(File file, ExternalDocumentChange item) {
         LocatableExtractor extractor = extractors.stream()
                 .filter(e -> e.supports(file))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Desteklenmeyen dosya türü: " + filePath));
+                .orElseThrow(() -> new IllegalArgumentException("Desteklenmeyen dosya türü: " + item.originalName()));
 
-        String fileName = file.getName();
-        String title = fileName.replaceFirst("\\.[^.]+$", "");
-        String url = pdfBaseUrl + encode(fileName);
-        String fileId = UUID.randomUUID().toString().substring(0, 8);
+        String title = item.originalName().replaceFirst("\\.[^.]+$", "");
+        Map<String, Object> baseMetadata = item.toMetadata();
+        baseMetadata.put("title", title);
+        baseMetadata.put("url", item.cdnUrl() != null ? item.cdnUrl() : "");
 
         List<LocatableUnit> pageUnits = extractor.extract(file);
         int chunkCount = 0;
@@ -56,13 +53,9 @@ public class LocateIndexingService {
             List<String> chunks = chunker.chunk(unit.text());
             for (String chunk : chunks) {
                 List<Float> embedding = embeddingService.embed(chunk);
-                Map<String, Object> metadata = Map.of(
-                        "title", title,
-                        "fileName", fileName,
-                        "location", unit.location(),
-                        "url", url
-                );
-                chromaClient.add(fileId + "-c" + chunkCount, chunk, embedding, metadata);
+                Map<String, Object> metadata = new HashMap<>(baseMetadata);
+                metadata.put("location", unit.location());
+                chromaClient.add(item.id() + "-c" + chunkCount, chunk, embedding, metadata);
                 chunkCount++;
             }
         }
@@ -70,7 +63,7 @@ public class LocateIndexingService {
         return chunkCount;
     }
 
-    private static String encode(String name) {
-        return URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+    public void deleteDocument(String documentId) {
+        chromaClient.delete(documentId);
     }
 }
