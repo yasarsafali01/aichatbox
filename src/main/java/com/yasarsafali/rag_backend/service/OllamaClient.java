@@ -10,14 +10,20 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Service
 public class OllamaClient {
 
-    private final WebClient client =
-            WebClient.create("http://localhost:11434");
+    private final WebClient client;
 
     @Value("${spring.ai.ollama.rag.model:qwen2.5}")
     private String model;
 
     @Value("${spring.ai.ollama.rag.keep-alive:30m}")
     private String keepAlive;
+
+    @Value("${spring.ai.ollama.rag.think:false}")
+    private boolean think;
+
+    public OllamaClient(@Value("${spring.ai.ollama.base-url:http://localhost:11434}") String baseUrl) {
+        this.client = WebClient.create(baseUrl);
+    }
 
     @SuppressWarnings("unchecked")
     public String generate(String prompt) {
@@ -27,6 +33,12 @@ public class OllamaClient {
                         "model", model,
                         "prompt", prompt,
                         "stream", false,
+                        // Qwen3/DeepSeek-R1 gibi "thinking" modellerinde uzun akıl
+                        // yürütme adımını açar/kapatır (spring.ai.ollama.rag.think);
+                        // ayrıca aşağıda stripThinking ile <think> bloğu ekstra
+                        // güvenlik olarak temizlenir (think:false'u desteklemeyen
+                        // modeller için).
+                        "think", think,
                         "keep_alive", keepAlive,
                         "options", Map.of(
                                 "temperature", 0,
@@ -39,7 +51,11 @@ public class OllamaClient {
 
         if (res == null) return "";
         Object response = res.get("response");
-        return response != null ? response.toString() : "";
+        return stripThinking(response != null ? response.toString() : "");
+    }
+
+    private static String stripThinking(String text) {
+        return text.replaceAll("(?s)<think>.*?</think>", "").trim();
     }
 
     public String getModel() {
