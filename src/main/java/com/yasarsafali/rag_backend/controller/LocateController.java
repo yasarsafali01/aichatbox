@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.yasarsafali.rag_backend.dto.locate.LocateRequest;
 import com.yasarsafali.rag_backend.dto.locate.LocateResult;
 import com.yasarsafali.rag_backend.service.locate.LocateService;
 
@@ -21,7 +22,7 @@ public class LocateController {
     }
 
     @PostMapping
-    public List<LocateResult> locate(@RequestBody String q) {
-        return locateService.locate(q);
+    public List<LocateResult> locate(@RequestBody LocateRequest request) {
+        return locateService.locate(request.question());
     }
 }

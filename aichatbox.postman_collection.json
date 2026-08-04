@@ -1,0 +1,256 @@
+{
+	"info": {
+		"_postman_id": "b8b6b8b0-1a2e-4f2a-9a7a-aichatbox0001",
+		"name": "aichatbox — RAG Backend",
+		"description": "Spring Boot 4 / Java 21 tabanlı RAG ve belge-içi arama uygulaması. Tüm istekler `X-API-Key` header'ı ister: `/rag/**` ve `/locate/**` için `chroma_api_key`, diğer tüm yollar için `admin_api_key` değişkeni kullanılır.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://localhost:8080", "type": "string" },
+		{ "key": "chroma_api_key", "value": "meu-ai-chatbox", "type": "string" },
+		{ "key": "admin_api_key", "value": "meu-baum-adminkey", "type": "string" }
+	],
+	"item": [
+		{
+			"name": "Home / Health Check",
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"url": {
+					"raw": "{{base_url}}/",
+					"host": [ "{{base_url}}" ],
+					"path": [ "" ]
+				},
+				"description": "Basit sağlık kontrolü / hoş geldin mesajı döner: \"Welcome to the RAG Backend!\""
+			},
+			"response": []
+		},
+		{
+			"name": "Direct Chat Ask (no RAG)",
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"url": {
+					"raw": "{{base_url}}/ask?q=Merhaba, nasılsın?",
+					"host": [ "{{base_url}}" ],
+					"path": [ "ask" ],
+					"query": [
+						{ "key": "q", "value": "Merhaba, nasılsın?" }
+					]
+				},
+				"description": "Soruyu doğrudan Ollama chat modeline gönderir, RAG/vektör arama devre dışı."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Embedding",
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"url": {
+					"raw": "{{base_url}}/embed?text=örnek metin",
+					"host": [ "{{base_url}}" ],
+					"path": [ "embed" ],
+					"query": [
+						{ "key": "text", "value": "örnek metin" }
+					]
+				},
+				"description": "Verilen metnin embedding vektörünü (List<Float>, nomic-embed-text modeli) döner."
+			},
+			"response": []
+		},
+		{
+			"name": "Benchmark Run",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n  \"Python nedir?\",\n  \"Siber güvenlik nedir?\"\n]",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/benchmark/run",
+					"host": [ "{{base_url}}" ],
+					"path": [ "benchmark", "run" ]
+				},
+				"description": "Verilen soru listesini sırayla modele gönderir; her biri için model, soru, cevap, yanıt süresi (ms) ve zaman damgasını döner."
+			},
+			"response": []
+		},
+		{
+			"name": "Locate (belge/sayfa konumu bul)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{chroma_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"question\": \"Örnek soru metni\"\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/locate",
+					"host": [ "{{base_url}}" ],
+					"path": [ "locate" ]
+				},
+				"description": "Soruya en yakın belge/sayfa konumlarını (title, fileName, location, url, distance) döner. LLM çağırmaz, ayrı bir Chroma koleksiyonu (locate.chroma.collection) kullanır.\n\nBody parametreleri:\n- `question` (string, zorunlu)"
+			},
+			"response": []
+		},
+		{
+			"name": "OCR Extract",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{ "key": "file", "type": "file", "src": [] }
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/ocr/extract",
+					"host": [ "{{base_url}}" ],
+					"path": [ "ocr", "extract" ]
+				},
+				"description": "Yüklenen görsel/PDF dosyasından Tesseract OCR ile metin çıkarır (multipart form-data, part adı: file). Max 10MB."
+			},
+			"response": []
+		},
+		{
+			"name": "RAG Add Document",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{chroma_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"Chroma koleksiyonuna eklenecek örnek metin.\"\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/rag/add",
+					"host": [ "{{base_url}}" ],
+					"path": [ "rag", "add" ]
+				},
+				"description": "Metni embedding'e çevirir ve genel RAG Chroma koleksiyonuna ekler.\n\nBody parametreleri:\n- `text` (string, zorunlu)"
+			},
+			"response": []
+		},
+		{
+			"name": "RAG Ask",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{chroma_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" },
+					{ "key": "X-User-Name", "value": "", "disabled": true, "description": "Opsiyonel, boş bilgi mesajını kişiselleştirmek için" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"question\": \"Örnek soru?\"\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/rag/ask",
+					"host": [ "{{base_url}}" ],
+					"path": [ "rag", "ask" ]
+				},
+				"description": "RAG tabanlı soru-cevap: Chroma'dan ilgili parçaları getirir, bağlama dayalı LLM cevabı üretir. İlgili içerik bulunamazsa bilinen konuları listeleyen bir Türkçe uyarı döner.\n\nBody parametreleri:\n- `question` (string, zorunlu)"
+			},
+			"response": []
+		},
+		{
+			"name": "Sync Run",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"since\": \"\",\n  \"limit\": 100\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/sync/run",
+					"host": [ "{{base_url}}" ],
+					"path": [ "sync", "run" ]
+				},
+				"description": "External API ile tam senkronizasyonu tetikler: `since`'den itibaren tüm sayfaları (cursor ile) sırayla çeker, her sayfadaki (en fazla `limit`, varsayılan/maks 100) dosyayı kendi içinde paralel işler (upsert/delete), items boş dönene kadar devam eder. Zaten çalışan bir sync/import varsa bunu bildirir.\n\nBody parametreleri (ikisi de opsiyonel; boş/null bırakılırsa kalan cursor / External API varsayılanı kullanılır):\n- `since` (string, RFC3339 tarih, örn. \"2026-01-01T00:00:00Z\") — bu andan sonra güncellenen kayıtlar taranır\n- `limit` (integer) — External API'nin sayfa başına döndüreceği dosya sayısı; External API tarafında maksimum 100 ile sınırlıdır\n\nBoş body (`{}`) veya body göndermeden de çağrılabilir."
+			},
+			"response": []
+		},
+		{
+			"name": "Sync Import (dosyadan tek seferlik)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" },
+					{ "key": "Content-Type", "value": "application/json" }
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"filePath\": \"C:/Users/user80/Desktop/aichatbox/import.json\",\n  \"parts\": 10\n}",
+					"options": { "raw": { "language": "json" } }
+				},
+				"url": {
+					"raw": "{{base_url}}/sync/import",
+					"host": [ "{{base_url}}" ],
+					"path": [ "sync", "import" ]
+				},
+				"description": "External API'yi hiç çağırmadan, sunucudaki bir JSON dosyasından tek seferlik toplu içe aktarma yapar. Dosya, External API'nin `/documents/changes` yanıtındaki `items[]` ile birebir aynı formatta bir JSON dizisi olmalı (id, event_type, original_name, file_type, mime_type, file_size, cdn_url, birim_id, birim_name, updated_at). Listeyi `parts` kadar parçaya böler ve her parçayı ayrı bir thread'de paralel işler (indirme + RAG/Locate'e ingest). Cursor'ı etkilemez, normal `/sync/run` akışından bağımsızdır.\n\nBody parametreleri:\n- `filePath` (string, zorunlu) — sunucu üzerindeki JSON dosyasının tam yolu\n- `parts` (integer, opsiyonel, varsayılan 1) — listenin kaç parçaya bölünüp paralel işleneceği\n\nİlerlemeyi `/sync/status` ile takip edebilirsin (aynı sayaçları kullanır)."
+			},
+			"response": []
+		},
+		{
+			"name": "Sync Status",
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"url": {
+					"raw": "{{base_url}}/sync/status",
+					"host": [ "{{base_url}}" ],
+					"path": [ "sync", "status" ]
+				},
+				"description": "Çalışan/son senkronizasyonun durumunu döner: running, totalItems, processed, upserted, deleted, skipped, failed, lastError, cursor."
+			},
+			"response": []
+		},
+		{
+			"name": "Chroma Stats",
+			"request": {
+				"method": "GET",
+				"header": [
+					{ "key": "X-API-Key", "value": "{{admin_api_key}}" }
+				],
+				"url": {
+					"raw": "{{base_url}}/stats/chroma",
+					"host": [ "{{base_url}}" ],
+					"path": [ "stats", "chroma" ]
+				},
+				"description": "Chroma'daki tüm koleksiyonları tarayıp özet bilgi döner:\n- `collectionCount`: toplam koleksiyon sayısı\n- `totalChunkCount`: tüm koleksiyonlardaki toplam chunk (satır) sayısı\n- `collections[]`: her koleksiyon için\n  - `id`, `name`\n  - `chunkCount`: o koleksiyondaki toplam chunk sayısı\n  - `fileCount`: benzersiz dosya sayısı (metadata'daki `documentId`'ye göre)\n  - `metadataFields`: o koleksiyonda gözlemlenen tüm metadata alan adları (indexleme formatı/şeması)\n  - `sampleMetadata`: örnek bir kaydın tam metadata'sı\n\nBüyük koleksiyonlarda (yüz binlerce chunk) metadata'yı sayfalayarak taradığı için yanıt birkaç saniye sürebilir."
+			},
+			"response": []
+		}
+	]
+}

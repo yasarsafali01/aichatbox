@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.yasarsafali.rag_backend.dto.rag.RagAddRequest;
+import com.yasarsafali.rag_backend.dto.rag.RagAskRequest;
 import com.yasarsafali.rag_backend.service.RagService;
 
 @RestController
@@ -19,14 +21,14 @@ public class RagController {
     }
 
     @PostMapping("/add")
-    public Object add(@RequestBody String text) {
-        return service.addDocument(text);
+    public Object add(@RequestBody RagAddRequest request) {
+        return service.addDocument(request.text());
     }
 
     @PostMapping("/ask")
     public Object ask(
-            @RequestBody String question,
+            @RequestBody RagAskRequest request,
             @RequestHeader(value = "X-User-Name", required = false, defaultValue = "") String userName) {
-        return service.ask(question, userName.trim());
+        return service.ask(request.question(), userName.trim());
     }
 }

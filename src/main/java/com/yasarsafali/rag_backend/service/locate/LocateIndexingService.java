@@ -66,4 +66,23 @@ public class LocateIndexingService {
     public void deleteDocument(String documentId) {
         chromaClient.delete(documentId);
     }
+
+    // =========================
+    // Silinen (event_type=deleted) kayıtlar için indirilecek bir dosya yok;
+    // yine de kayıt Chroma'da iz olarak tutulsun diye tek satırlık bir
+    // yer tutucu eklenir. Metadata'daki eventType="deleted" sayesinde
+    // LocateChromaClient.query() bu satırı arama sonuçlarından otomatik
+    // hariç tutar.
+    // =========================
+    public void indexDeletedMarker(ExternalDocumentChange item) {
+        String title = item.originalName().replaceFirst("\\.[^.]+$", "");
+        Map<String, Object> metadata = item.toMetadata();
+        metadata.put("title", title);
+        metadata.put("url", item.cdnUrl() != null ? item.cdnUrl() : "");
+        metadata.put("location", "Silindi");
+
+        String placeholder = "[SİLİNDİ] " + item.originalName();
+        List<Float> embedding = embeddingService.embed(placeholder);
+        chromaClient.add(item.id() + "-deleted", placeholder, embedding, metadata);
+    }
 }

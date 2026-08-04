@@ -84,4 +84,17 @@ public class DocumentIngestionService {
     public void deleteDocument(String documentId) {
         chromaClient.delete(documentId);
     }
+
+    // =========================
+    // Silinen (event_type=deleted) kayıtlar için indirilecek bir dosya yok;
+    // yine de kayıt Chroma'da iz olarak tutulsun diye tek satırlık bir
+    // yer tutucu eklenir. Metadata'daki eventType="deleted" sayesinde
+    // ChromaClient.query() bu satırı arama sonuçlarından otomatik hariç tutar.
+    // =========================
+    public void indexDeletedMarker(ExternalDocumentChange item) {
+        Map<String, Object> metadata = item.toMetadata();
+        String placeholder = "[SİLİNDİ] " + item.originalName();
+        List<Float> embedding = embeddingService.embed(placeholder);
+        chromaClient.add(item.id() + "-deleted", placeholder, embedding, metadata);
+    }
 }

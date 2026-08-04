@@ -91,6 +91,8 @@ public class LocateChromaClient {
         body.put("query_embeddings", List.of(embedding));
         body.put("n_results", nResults);
         body.put("include", List.of("documents", "distances", "metadatas"));
+        // Silinmiş belgelerin Chroma'daki iz kayıtları sonuçlara yansımasın
+        body.put("where", Map.of("eventType", Map.of("$ne", "deleted")));
 
         Map<String, Object> response = webClient.post()
                 .uri(url)

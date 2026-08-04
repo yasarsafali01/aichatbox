@@ -1,14 +1,20 @@
 package com.yasarsafali.rag_backend.service.external;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.yasarsafali.rag_backend.dto.external.ExternalDocumentChange;
 import com.yasarsafali.rag_backend.dto.external.ExternalDocumentsChangesResponse;
 import com.yasarsafali.rag_backend.service.DocumentIngestionService;
@@ -20,12 +26,13 @@ public class ExternalDocumentSyncService {
     private final ExternalApiClient apiClient;
     private final DocumentIngestionService ragIngestionService;
     private final LocateIndexingService locateIndexingService;
+    private final ObjectMapper objectMapper;
 
     @Value("${external-api.initial-since}")
     private String initialSince;
 
     @Value("${external-api.page-size:100}")
-    private int pageSize;
+    private int defaultLimit;
 
     private final AtomicReference<String> cursor = new AtomicReference<>();
 
@@ -40,15 +47,15 @@ public class ExternalDocumentSyncService {
 
     public ExternalDocumentSyncService(ExternalApiClient apiClient,
                                         DocumentIngestionService ragIngestionService,
-                                        LocateIndexingService locateIndexingService) {
+                                        LocateIndexingService locateIndexingService,
+                                        ObjectMapper objectMapper) {
         this.apiClient = apiClient;
         this.ragIngestionService = ragIngestionService;
         this.locateIndexingService = locateIndexingService;
+        this.objectMapper = objectMapper;
     }
 
-    public synchronized boolean start() {
-        if (running) return false;
-
+    private void resetCounters() {
         totalItems.set(0);
         processed.set(0);
         upserted.set(0);
@@ -56,20 +63,127 @@ public class ExternalDocumentSyncService {
         skipped.set(0);
         failed.set(0);
         lastError = "";
+    }
+
+    public synchronized boolean start(String sinceOverride, Integer limitOverride) {
+        if (running) return false;
+
+        resetCounters();
         running = true;
 
-        Thread worker = new Thread(this::runSync, "external-doc-sync");
+        String effectiveSince = (sinceOverride != null && !sinceOverride.isBlank())
+                ? sinceOverride
+                : (cursor.get() != null ? cursor.get() : initialSince);
+        int effectiveLimit = (limitOverride != null && limitOverride > 0) ? limitOverride : defaultLimit;
+
+        Thread worker = new Thread(() -> runSync(effectiveSince, effectiveLimit), "external-doc-sync");
         worker.setDaemon(true);
         worker.start();
         return true;
     }
 
-    private void runSync() {
-        String since = cursor.get() != null ? cursor.get() : initialSince;
+    // =========================
+    // Tek seferlik, elle hazırlanmış bir JSON dosyasından içe aktarma.
+    // External API'yi hiç çağırmaz, cursor'ı değiştirmez; External API'nin
+    // /documents/changes items[] formatındaki bir JSON dizisini diskten okur
+    // ve `parts` kadar parçaya bölüp paralel işler. Dosya okunamazsa/bozuksa
+    // senkron olarak hata fırlatır (arka plan işi hiç başlamaz).
+    // =========================
+    public synchronized boolean startImport(String filePath, Integer partsOverride) {
+        if (running) return false;
+
+        List<ExternalDocumentChange> items = readItemsFromFile(filePath);
+
+        resetCounters();
+        running = true;
+
+        int requestedParts = (partsOverride != null && partsOverride > 0) ? partsOverride : 1;
+        List<List<ExternalDocumentChange>> chunks = splitInto(items, requestedParts);
+
+        Thread worker = new Thread(() -> runImport(chunks), "external-doc-import");
+        worker.setDaemon(true);
+        worker.start();
+        return true;
+    }
+
+    private List<ExternalDocumentChange> readItemsFromFile(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath belirtilmedi");
+        }
+
+        File file = new File(filePath);
+        if (!file.isFile()) {
+            throw new IllegalArgumentException("Dosya bulunamadı: " + filePath);
+        }
 
         try {
+            return objectMapper.readValue(file, new TypeReference<List<ExternalDocumentChange>>() {});
+        } catch (Exception e) {
+            throw new IllegalArgumentException("JSON okunamadı: " + e.getMessage(), e);
+        }
+    }
+
+    private List<List<ExternalDocumentChange>> splitInto(List<ExternalDocumentChange> items, int parts) {
+        int total = items.size();
+        int effectiveParts = Math.max(1, Math.min(parts, Math.max(total, 1)));
+
+        List<List<ExternalDocumentChange>> chunks = new ArrayList<>();
+        int base = total / effectiveParts;
+        int remainder = total % effectiveParts;
+        int index = 0;
+
+        for (int i = 0; i < effectiveParts; i++) {
+            int size = base + (i < remainder ? 1 : 0);
+            if (size == 0) continue;
+            chunks.add(new ArrayList<>(items.subList(index, index + size)));
+            index += size;
+        }
+
+        return chunks;
+    }
+
+    private void runImport(List<List<ExternalDocumentChange>> chunks) {
+        try {
+            int total = chunks.stream().mapToInt(List::size).sum();
+            totalItems.addAndGet(total);
+
+            ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, chunks.size()));
+            try {
+                List<CompletableFuture<Void>> futures = chunks.stream()
+                        .map(chunk -> CompletableFuture.runAsync(() -> {
+                            for (ExternalDocumentChange item : chunk) {
+                                try {
+                                    handle(item);
+                                } catch (Exception e) {
+                                    failed.incrementAndGet();
+                                    lastError = item.originalName() + ": " + e.getMessage();
+                                } finally {
+                                    processed.incrementAndGet();
+                                }
+                            }
+                        }, pool))
+                        .toList();
+
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            } finally {
+                pool.shutdown();
+            }
+        } catch (Exception e) {
+            lastError = "İçe aktarma hatası: " + e.getMessage();
+        } finally {
+            running = false;
+        }
+    }
+
+    private static final int PARALLELISM = 8;
+
+    // External API tek çağrıda en fazla `limit` (maks. 100) dosya döner.
+    // items boş dönene kadar sayfalar (cursor ile) sırayla çekilir; her
+    // sayfadaki dosyalar ise kendi içinde paralel işlenir.
+    private void runSync(String since, int limit) {
+        try {
             while (true) {
-                ExternalDocumentsChangesResponse page = apiClient.getChanges(since, pageSize);
+                ExternalDocumentsChangesResponse page = apiClient.getChanges(since, limit);
                 List<ExternalDocumentChange> items = page.items();
 
                 if (items.isEmpty()) {
@@ -78,16 +192,7 @@ public class ExternalDocumentSyncService {
                 }
 
                 totalItems.addAndGet(items.size());
-                for (ExternalDocumentChange item : items) {
-                    try {
-                        handle(item);
-                    } catch (Exception e) {
-                        failed.incrementAndGet();
-                        lastError = item.originalName() + ": " + e.getMessage();
-                    } finally {
-                        processed.incrementAndGet();
-                    }
-                }
+                processPageInParallel(items);
 
                 since = page.nextCursor();
             }
@@ -100,12 +205,39 @@ public class ExternalDocumentSyncService {
         }
     }
 
+    private void processPageInParallel(List<ExternalDocumentChange> items) {
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(PARALLELISM, items.size()));
+        try {
+            List<CompletableFuture<Void>> futures = items.stream()
+                    .map(item -> CompletableFuture.runAsync(() -> {
+                        try {
+                            handle(item);
+                        } catch (Exception e) {
+                            failed.incrementAndGet();
+                            lastError = item.originalName() + ": " + e.getMessage();
+                        } finally {
+                            processed.incrementAndGet();
+                        }
+                    }, pool))
+                    .toList();
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            pool.shutdown();
+        }
+    }
+
     private void handle(ExternalDocumentChange item) {
         // Her durumda önce eski chunk'ları temizle (idempotent upsert / silme)
         ragIngestionService.deleteDocument(item.id());
         locateIndexingService.deleteDocument(item.id());
 
         if (item.isDeleted()) {
+            // Belge silindi; dosya indirilemez ama kayıt Chroma'da iz olarak
+            // kalsın diye yer tutucu eklenir (arama sonuçlarına yansımaz,
+            // bkz. ChromaClient/LocateChromaClient.query() where filtresi).
+            ragIngestionService.indexDeletedMarker(item);
+            locateIndexingService.indexDeletedMarker(item);
             deleted.incrementAndGet();
             return;
         }
