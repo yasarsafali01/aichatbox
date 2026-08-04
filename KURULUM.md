@@ -232,6 +232,8 @@ external-api.page-size=100
 
 > **Not — cursor kalıcılığı:** Senkronizasyon cursor'ı (`next_cursor`) yalnızca bellekte tutulur (H2 gibi kalıcı değildir). Uygulama yeniden başlatıldığında `external-api.initial-since` değerinden itibaren tekrar taranır; bu, `documentId` bazlı idempotent upsert/delete sayesinde güvenlidir (aynı kayıt tekrar işlense de veri bozulmaz) ancak gereksiz yeniden işleme anlamına gelir.
 
+> **Not — metadata:** External API yanıtındaki tüm alanlar (`birim_id`, `birim_name`, `file_type`, `updated_at` vb.) her chunk ile birlikte Chroma metadata'sına yazılır, ileride bu alanlara göre filtreleme yapılabilsin diye. Tam şema için bkz. [PROJE_MIMARISI.md § 3.6](PROJE_MIMARISI.md#36-chroma-metadata-şeması-rag--locate-ortak).
+
 ---
 
 ## 7. Derleme ve Çalıştırma

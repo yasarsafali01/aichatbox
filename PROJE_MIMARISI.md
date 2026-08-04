@@ -93,7 +93,7 @@ Tüm embedding üretimi ve LLM metin üretimi **Ollama** üzerinden yapılır; b
 |---|---|
 | `SyncController` | `/sync/run` (senkronizasyonu arka planda başlatır) ve `/sync/status` (ilerleme durumu) uçlarını sağlar. |
 | `ExternalApiClient` | External API'nin `GET /documents/changes` ucunu `X-API-Key` ile çağırır; ayrıca `cdn_url`'den dosyayı akış (streaming) olarak geçici bir dosyaya indirir (büyük dosyalarda belleği şişirmemek için). |
-| `ExternalDocumentChange` / `ExternalDocumentsChangesResponse` (dto) | External API'nin JSON yanıtının Java karşılığı (`id`, `event_type`, `original_name`, `cdn_url`, `updated_at`, `next_cursor` vb.). |
+| `ExternalDocumentChange` / `ExternalDocumentsChangesResponse` (dto) | External API'nin JSON yanıtının Java karşılığı (`id`, `event_type`, `original_name`, `file_type`, `mime_type`, `file_size`, `cdn_url`, `birim_id`, `birim_name`, `updated_at`, `next_cursor` vb.). `ExternalDocumentChange.toMetadata()`, bu alanların **tamamını** düz bir Chroma metadata map'ine çevirir — bkz. Bölüm 3.6. |
 | `ExternalDocumentSyncService` | Asıl senkronizasyon mantığı: bkz. Bölüm 4.1. `AtomicInteger` sayaçlarla ilerleme durumunu tutar; cursor'ı bellekte tutar. Aynı anda yalnızca bir senkronizasyon çalışabilir. |
 
 ### 3.4 Genel RAG hattı (`/rag`)
@@ -103,7 +103,7 @@ Tüm embedding üretimi ve LLM metin üretimi **Ollama** üzerinden yapılır; b
 | Sınıf | Rol |
 |---|---|
 | `RagController` | `/rag/add`, `/rag/ask` uçlarını sağlar. |
-| `DocumentIngestionService` | Apache **Tika** (`AutoDetectParser`) ile indirilen dosyanın (pdf/doc/docx/xls/xlsx/ppt/pptx) düz metnini çıkarır, 800 karakterlik parçalara (chunk) böler, her parçayı embed edip **`documentId` metadata'sıyla birlikte** Chroma'ya ekler. Dosya adından bir "konu" (topic) türetip `TopicRegistry`'ye kaydeder. Ayrıca `deleteDocument(documentId)` ile bir belgenin tüm chunk'larını Chroma'dan siler. |
+| `DocumentIngestionService` | Apache **Tika** (`AutoDetectParser`) ile indirilen dosyanın (pdf/doc/docx/xls/xlsx/ppt/pptx) düz metnini çıkarır, 800 karakterlik parçalara (chunk) böler, her parçayı embed edip **`item.toMetadata()`'nın tüm alanlarıyla birlikte** (bkz. Bölüm 3.6) Chroma'ya ekler. Dosya adından bir "konu" (topic) türetip `TopicRegistry`'ye kaydeder. Ayrıca `deleteDocument(documentId)` ile bir belgenin tüm chunk'larını Chroma'dan siler. |
 | `TopicRegistry` | Yüklenen belgelerden türeyen ve `chroma.initial-topics` ile önceden tanımlı konuların kümesini tutar; kullanıcı bağlam dışı bir soru sorduğunda "şu konularda yardımcı olabilirim" mesajında kullanılır. |
 | `OllamaEmbeddingService` | `POST /api/embeddings` (Ollama) çağrısıyla metni embedding vektörüne çevirir. Hem RAG hem Locate hattı tarafından **ortak** kullanılır. |
 | `ChromaClient` | Genel RAG koleksiyonuna metadata destekli `add`/`query`/`delete` REST çağrılarını yapar (`chroma.collection`). `delete`, `{"where": {"documentId": ...}}` filtresiyle bir belgenin tüm chunk'larını tek seferde temizler. |
@@ -124,10 +124,37 @@ Tüm embedding üretimi ve LLM metin üretimi **Ollama** üzerinden yapılır; b
 | `PptxSlideExtractor` | `.pptx` (POI `XMLSlideShow`) ve `.ppt` (POI `HSLFSlideShow`) dosyalarını **slayt bazında** metne çevirir → `"Slayt N"`. |
 | `LocatableUnit` | `(location, text)` — bir extractor'ın ürettiği tek bir konum biriminin kaydı (örn. `("Sayfa 3", "...metin...")`). |
 | `PageChunker` | Her `LocatableUnit`'in metnini, `DocumentIngestionService` ile aynı mantıkla 800 karakterlik parçalara böler (bir sayfa/paragraf/slayt kendi içinde uzunsa birden fazla chunk üretebilir). |
-| `LocateIndexingService` | İndirilen dosyayı destekleyen extractor'ı seçer → birimlere ayırır → her birimi chunk'lar → her chunk'ı embed edip **metadata ile birlikte** (`documentId`, `title`, `fileName`, `location`, `url`) `LocateChromaClient`'a ekler. `url` artık External API'nin verdiği **`cdn_url`**'dir (dosyaya doğrudan tıklanabilir bağlantı). Ayrıca `deleteDocument(documentId)` ile bir belgenin tüm chunk'larını siler. |
+| `LocateIndexingService` | İndirilen dosyayı destekleyen extractor'ı seçer → birimlere ayırır → her birimi chunk'lar → her chunk'ı embed edip **`item.toMetadata()`'nın tüm alanları + `title` + `location`** ile `LocateChromaClient`'a ekler (bkz. Bölüm 3.6). `url`, External API'nin verdiği **`cdn_url`**'dir (dosyaya doğrudan tıklanabilir bağlantı). Ayrıca `deleteDocument(documentId)` ile bir belgenin tüm chunk'larını siler. |
 | `LocateChromaClient` | Ayrı bir Chroma koleksiyonuna (`locate.chroma.collection`) metadata destekli `add`/`query`/`delete` yapar. |
 | `LocateService` | Soru geldiğinde embed edip Chroma'da arar; `locate.distance-threshold` altındaki sonuçları alır; **aynı dosya + aynı konum** için birden fazla chunk eşleşirse yalnızca en yakın (distance'ı en düşük) olanı tutar; sonucu benzerlik skoruna göre sıralayıp `LocateResult` listesi döner. |
-| `LocateResult` (dto) | `(title, fileName, location, url, distance)` — API yanıtının birimi. |
+| `LocateResult` (dto) | `(title, fileName, location, url, distance)` — API yanıtının şu anki birimi. Chroma'daki metadata bundan daha zengindir (bkz. Bölüm 3.6); `LocateResult` henüz bu ek alanları dışarı vermiyor. |
+
+### 3.6 Chroma Metadata Şeması (RAG + Locate ortak)
+
+`ExternalDocumentChange.toMetadata()`, External API yanıtındaki **tüm alanları** düz (flat) bir metadata map'ine çevirir — Chroma'nın `where` filtresiyle sorgulanabilsin diye. Hem genel RAG koleksiyonundaki hem de locate koleksiyonundaki **her chunk** bu alanları taşır:
+
+| Metadata anahtarı | Kaynak (External API alanı) | Tip |
+|---|---|---|
+| `documentId` | `id` | string |
+| `eventType` | `event_type` | string (`"upsert"` senkronize edilenler için) |
+| `fileName` | `original_name` | string |
+| `fileType` | `file_type` | string (örn. `"PDF"`) |
+| `mimeType` | `mime_type` | string |
+| `fileSize` | `file_size` | number |
+| `cdnUrl` | `cdn_url` | string |
+| `birimId` | `birim_id` | number (negatif = harici birim) |
+| `birimNameTr` | `birim_name.tr` | string |
+| `birimNameEn` | `birim_name.en` | string |
+| `updatedAt` | `updated_at` | string (RFC3339) |
+
+Locate koleksiyonu ayrıca şu iki alanı ekler (RAG koleksiyonunda yoktur):
+
+| Metadata anahtarı | Açıklama |
+|---|---|
+| `title` | Dosya adından uzantısız türetilen başlık |
+| `location` | `"Sayfa N"` / `"Paragraf N"` / `"Slayt N"` / `"Sayfa: <sheet adı>"` |
+
+> **Not:** `birim_name` API'de `{tr, en}` şeklinde iç içe bir map olarak gelir; Chroma metadata düz (flat) olmak zorunda olduğundan `birimNameTr`/`birimNameEn` olarak iki ayrı alana açılır. Bu alanlar şu an **yalnızca Chroma'da saklanır** — `/rag/ask` ve `/locate` yanıtlarında (henüz) dışarı verilmez; birime/dosya türüne/tarihe göre filtreleme ileride bu metadata üzerinden (`where` filtresi) eklenecektir.
 
 ---
 
@@ -154,10 +181,11 @@ loop:
         c) Dosya türü desteklenmiyorsa (pdf/doc/docx/xls/xlsx/ppt/pptx
            dışında) → dur, sıradaki item'a geç
         d) ExternalApiClient.download(item.cdn_url) → geçici dosya
-        e) DocumentIngestionService.ingest(dosya, item.id, item.original_name)
-           → genel RAG koleksiyonuna chunk'lanıp yazılır
-        f) LocateIndexingService.ingest(dosya, item.id, item.original_name, item.cdn_url)
-           → sayfa/paragraf/slayt bazlı locate koleksiyonuna yazılır
+        e) DocumentIngestionService.ingest(dosya, item)
+           → genel RAG koleksiyonuna chunk'lanıp, item.toMetadata() ile yazılır
+        f) LocateIndexingService.ingest(dosya, item)
+           → sayfa/paragraf/slayt bazlı locate koleksiyonuna,
+             item.toMetadata() + title + location ile yazılır
         g) geçici dosya silinir
    4) since = next_cursor, 1'e dön
    │
