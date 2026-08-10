@@ -35,3 +35,8 @@ build/
 
 ### Claude ###
 .claude/
+
+### Kurulum dokumanlari (yerel, GitHub'a gitmesin) ###
+SSH_KURULUM.md
+RDP_KURULUM.md
+PROJE_KURULUM.md

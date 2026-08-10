@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.yasarsafali.rag_backend.dto.rag.RagAddRequest;
 import com.yasarsafali.rag_backend.dto.rag.RagAskRequest;
+import com.yasarsafali.rag_backend.service.ProfanityFilterService;
 import com.yasarsafali.rag_backend.service.RagService;
 
 @RestController
@@ -15,13 +16,16 @@ import com.yasarsafali.rag_backend.service.RagService;
 public class RagController {
 
     private final RagService service;
+    private final ProfanityFilterService profanityFilterService;
 
-    public RagController(RagService service) {
+    public RagController(RagService service, ProfanityFilterService profanityFilterService) {
         this.service = service;
+        this.profanityFilterService = profanityFilterService;
     }
 
     @PostMapping("/add")
     public Object add(@RequestBody RagAddRequest request) {
+        profanityFilterService.assertClean(request.text());
         return service.addDocument(request.text());
     }
 
@@ -29,6 +33,7 @@ public class RagController {
     public Object ask(
             @RequestBody RagAskRequest request,
             @RequestHeader(value = "X-User-Name", required = false, defaultValue = "") String userName) {
+        profanityFilterService.assertClean(request.question());
         return service.ask(request.question(), userName.trim());
     }
 }
