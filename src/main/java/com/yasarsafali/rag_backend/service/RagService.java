@@ -62,13 +62,31 @@ public class RagService {
         String context = String.join("\n\n", seen);
         String prompt = """
                 Yalnızca aşağıdaki belgelerden yararlanarak Türkçe yanıt ver.
-                Belgeler sorunun cevabını içermiyorsa sadece şunu yaz: "Bu konuda bilgim yok."
+
+                KURALLAR:
+                - Belgeler sorunun cevabını içeriyorsa, yanıtı KESİNLİKLE aşağıdaki formatta ver. Başka hiçbir giriş, açıklama veya yorum cümlesi ekleme.
+                - Belgeler sorunun cevabını içermiyorsa SADECE şunu yaz: "Bu konuda bilgim yok."
+
+                Format (belgeler cevabı içeriyorsa):
+                Soru: <soruyu aynen tekrar yaz>
+                Bu konu hakkında bildiklerim:
+                <cevabı buraya yaz>
+
+                Örnek:
+                Belgeler:
+                Kayıt yenileme işlemleri her yıl eylül ayının ilk iki haftasında yapılır.
+
+                Soru: Kayıt yenileme ne zaman yapılır?
+                Yanıt:
+                Soru: Kayıt yenileme ne zaman yapılır?
+                Bu konu hakkında bildiklerim:
+                Kayıt yenileme işlemleri her yıl eylül ayının ilk iki haftasında yapılır.
 
                 Belgeler:
                 %s
 
                 Soru: %s
-                Cevap:""".formatted(context, question);
+                Yanıt:""".formatted(context, question);
 
         return ollamaClient.generate(prompt);
     }
