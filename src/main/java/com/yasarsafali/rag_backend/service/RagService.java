@@ -1,7 +1,5 @@
 package com.yasarsafali.rag_backend.service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,6 +14,7 @@ public class RagService {
     private final ChromaClient chromaClient;
     private final OllamaClient ollamaClient;
     private final TopicRegistry topicRegistry;
+    private final QueryExpansionService queryExpansionService;
 
     @Value("${chroma.distance-threshold:340.0}")
     private double distanceThreshold;
@@ -23,11 +22,13 @@ public class RagService {
     public RagService(OllamaEmbeddingService embeddingService,
                       ChromaClient chromaClient,
                       OllamaClient ollamaClient,
-                      TopicRegistry topicRegistry) {
+                      TopicRegistry topicRegistry,
+                      QueryExpansionService queryExpansionService) {
         this.embeddingService = embeddingService;
         this.chromaClient = chromaClient;
         this.ollamaClient = ollamaClient;
         this.topicRegistry = topicRegistry;
+        this.queryExpansionService = queryExpansionService;
     }
 
     public Object addDocument(String text) {
@@ -36,7 +37,7 @@ public class RagService {
     }
 
     public String ask(String question, String userName) {
-        List<String> queries = expandQuery(question);
+        List<String> queries = queryExpansionService.expand(question);
 
         Set<String> seen = new LinkedHashSet<>();
         for (String q : queries) {
@@ -102,25 +103,5 @@ public class RagService {
             sb.append(String.join(", ", topics)).append(".");
         }
         return sb.toString();
-    }
-
-    private List<String> expandQuery(String question) {
-        String expansionPrompt = """
-                Aşağıdaki soruyu, aynı anlama gelen 2 farklı şekilde yeniden ifade et.
-                Sadece soruları yaz, her biri ayrı satırda, başka hiçbir şey yazma.
-
-                Soru: %s""".formatted(question);
-
-        String raw = ollamaClient.generate(expansionPrompt);
-
-        List<String> variants = new ArrayList<>();
-        variants.add(question);
-        Arrays.stream(raw.split("\n"))
-                .map(String::trim)
-                .filter(s -> !s.isBlank() && !s.equalsIgnoreCase(question))
-                .limit(2)
-                .forEach(variants::add);
-
-        return variants;
     }
 }

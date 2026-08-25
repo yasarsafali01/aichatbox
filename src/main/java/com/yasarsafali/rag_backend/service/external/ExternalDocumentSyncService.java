@@ -1,10 +1,16 @@
 package com.yasarsafali.rag_backend.service.external;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +54,18 @@ public class ExternalDocumentSyncService {
     private volatile boolean running = false;
     private volatile String lastError = "";
 
+    // Ayni calistirma icinde ayni documentId'nin iki kez (paralel batch'lerde
+    // tekrar gelirse) islenmesini engellemek icin - her start()/startImport()
+    // cagrisinda resetCounters() ile temizlenir, calistirmalar arasi kalici degildir.
+    private final Set<String> processedIds = ConcurrentHashMap.newKeySet();
+
+    // Hata alan ogeleri (id/originalName/cdnUrl dahil tum alanlariyla) tutar;
+    // calistirma sonunda logs/sync-failed-items.json'a yazilir ki sadece
+    // basarisiz olanlar /sync/import ile tekrar denenebilsin.
+    private final List<ExternalDocumentChange> failedItems = Collections.synchronizedList(new ArrayList<>());
+
+    private static final Path FAILED_ITEMS_FILE = Path.of("logs", "sync-failed-items.json");
+
     public ExternalDocumentSyncService(ExternalApiClient apiClient,
                                         DocumentIngestionService ragIngestionService,
                                         LocateIndexingService locateIndexingService,
@@ -66,8 +84,16 @@ public class ExternalDocumentSyncService {
         skipped.set(0);
         failed.set(0);
         lastError = "";
+        processedIds.clear();
+        failedItems.clear();
     }
 
+    // sinceOverride: baslangic cursor'i (RFC3339 zaman damgasi - External API
+    // sadece bunu kabul eder, sayisal bir konum/offset degildir).
+    // limitOverride: bu calistirmada TOPLAM en fazla kac dosyanin cekilecegini
+    // sinirlar (sayfalama arka planda gerektigi kadar surer, ama toplam
+    // limitOverride'i asmaz). Bos/0 birakilirsa sinirsiz - since'ten itibaren
+    // tum kayitlar taranir (mevcut/varsayilan davranis).
     public synchronized boolean start(String sinceOverride, Integer limitOverride) {
         if (running) return false;
 
@@ -77,9 +103,9 @@ public class ExternalDocumentSyncService {
         String effectiveSince = (sinceOverride != null && !sinceOverride.isBlank())
                 ? sinceOverride
                 : (cursor.get() != null ? cursor.get() : initialSince);
-        int effectiveLimit = (limitOverride != null && limitOverride > 0) ? limitOverride : defaultLimit;
+        int totalCap = (limitOverride != null && limitOverride > 0) ? limitOverride : -1;
 
-        Thread worker = new Thread(() -> runSync(effectiveSince, effectiveLimit), "external-doc-sync");
+        Thread worker = new Thread(() -> runSync(effectiveSince, totalCap), "external-doc-sync");
         worker.setDaemon(true);
         worker.start();
         return true;
@@ -176,9 +202,14 @@ public class ExternalDocumentSyncService {
                         .map(chunk -> CompletableFuture.runAsync(() -> {
                             for (ExternalDocumentChange item : chunk) {
                                 try {
+                                    if (!processedIds.add(item.id())) {
+                                        skipped.incrementAndGet();
+                                        continue;
+                                    }
                                     handle(item);
                                 } catch (Exception e) {
                                     failed.incrementAndGet();
+                                    failedItems.add(item);
                                     lastError = item.originalName() + ": " + e.getMessage();
                                 } finally {
                                     processed.incrementAndGet();
@@ -194,19 +225,26 @@ public class ExternalDocumentSyncService {
         } catch (Exception e) {
             lastError = "İçe aktarma hatası: " + e.getMessage();
         } finally {
+            writeFailedItemsFile();
             running = false;
         }
     }
 
-    private static final int PARALLELISM = 8;
+    private static final int PARALLELISM = 10;
 
-    // External API tek çağrıda en fazla `limit` (maks. 100) dosya döner.
-    // items boş dönene kadar sayfalar (cursor ile) sırayla çekilir; her
-    // sayfadaki dosyalar ise kendi içinde paralel işlenir.
-    private void runSync(String since, int limit) {
+    // External API tek çağrıda en fazla `pageSize` (maks. 100) dosya döner.
+    // totalCap > 0 ise toplam çekilen öğe sayısı totalCap'e ulaşınca durur;
+    // totalCap <= 0 ise items boş dönene kadar (tüm kayıtlar) sayfalar
+    // (cursor ile) sırayla çekilir. Her sayfadaki dosyalar kendi içinde
+    // paralel işlenir.
+    private void runSync(String since, int totalCap) {
         try {
             while (true) {
-                ExternalDocumentsChangesResponse page = apiClient.getChanges(since, limit);
+                if (totalCap > 0 && totalItems.get() >= totalCap) break;
+
+                int pageSize = (totalCap > 0) ? Math.min(defaultLimit, totalCap - totalItems.get()) : defaultLimit;
+
+                ExternalDocumentsChangesResponse page = apiClient.getChanges(since, pageSize);
                 List<ExternalDocumentChange> items = page.items();
 
                 if (items.isEmpty()) {
@@ -224,6 +262,7 @@ public class ExternalDocumentSyncService {
         } catch (Exception e) {
             lastError = "Senkronizasyon hatası: " + e.getMessage();
         } finally {
+            writeFailedItemsFile();
             running = false;
         }
     }
@@ -234,9 +273,14 @@ public class ExternalDocumentSyncService {
             List<CompletableFuture<Void>> futures = items.stream()
                     .map(item -> CompletableFuture.runAsync(() -> {
                         try {
+                            if (!processedIds.add(item.id())) {
+                                skipped.incrementAndGet();
+                                return;
+                            }
                             handle(item);
                         } catch (Exception e) {
                             failed.incrementAndGet();
+                            failedItems.add(item);
                             lastError = item.originalName() + ": " + e.getMessage();
                         } finally {
                             processed.incrementAndGet();
@@ -247,6 +291,20 @@ public class ExternalDocumentSyncService {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         } finally {
             pool.shutdown();
+        }
+    }
+
+    // Basarisiz ogeleri /sync/import ile ayni JSON formatinda (id/original_name/
+    // cdn_url dahil) logs/sync-failed-items.json'a yazar; her calistirma bir
+    // onceki calistirmanin dosyasinin uzerine yazar (sadece "en son" hatalar).
+    private void writeFailedItemsFile() {
+        if (failedItems.isEmpty()) return;
+        try {
+            Files.createDirectories(FAILED_ITEMS_FILE.getParent());
+            List<ExternalDocumentChange> snapshot = new ArrayList<>(failedItems);
+            Files.writeString(FAILED_ITEMS_FILE, objectMapper.writeValueAsString(snapshot), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            lastError = lastError + " | Hata dosyasi yazilamadi: " + e.getMessage();
         }
     }
 
