@@ -59,6 +59,67 @@
       "name": "security.api-key.admin",
       "type": "java.lang.String",
       "description": "Required X-API-Key value for all other endpoints."
+    },
+    {
+      "name": "chroma.timeout-seconds",
+      "type": "java.lang.Integer",
+      "description": "Timeout (seconds) for Chroma HTTP calls (add/delete/query).",
+      "defaultValue": 30
+    },
+    {
+      "name": "app.cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of origins allowed by CORS for the frontend."
+    },
+    {
+      "name": "ocr.tessdata-path",
+      "type": "java.lang.String",
+      "description": "Filesystem path to the Tesseract-OCR tessdata folder, used for image (jpg/png) OCR."
+    },
+    {
+      "name": "ocr.language",
+      "type": "java.lang.String",
+      "description": "Tesseract-OCR language code.",
+      "defaultValue": "tur"
+    },
+    {
+      "name": "external-api.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL of the external document source API used by /sync."
+    },
+    {
+      "name": "external-api.api-key",
+      "type": "java.lang.String",
+      "description": "API key sent to the external document source API."
+    },
+    {
+      "name": "external-api.initial-since",
+      "type": "java.lang.String",
+      "description": "Default 'since' cursor used when a /sync/run is started without an explicit since value."
+    },
+    {
+      "name": "external-api.page-size",
+      "type": "java.lang.Integer",
+      "description": "Page size (max 100) used when paging through /documents/changes.",
+      "defaultValue": 100
+    },
+    {
+      "name": "external-api.request-timeout-seconds",
+      "type": "java.lang.Integer",
+      "description": "Timeout (seconds) for the /documents/changes call.",
+      "defaultValue": 30
+    },
+    {
+      "name": "external-api.download-timeout-seconds",
+      "type": "java.lang.Integer",
+      "description": "Timeout (seconds) for downloading a file from the CDN.",
+      "defaultValue": 120
+    },
+    {
+      "name": "spring.ai.ollama.embedding.timeout-seconds",
+      "type": "java.lang.Integer",
+      "description": "Timeout (seconds) for Ollama embedding calls.",
+      "defaultValue": 60
     }
   ]
 }
