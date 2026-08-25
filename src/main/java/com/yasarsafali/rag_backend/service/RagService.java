@@ -68,7 +68,6 @@ public class RagService {
                 - Belgeler sorunun cevabını içermiyorsa SADECE şunu yaz: "Bu konuda bilgim yok."
 
                 Format (belgeler cevabı içeriyorsa):
-                Soru: <soruyu aynen tekrar yaz>
                 Bu konu hakkında bildiklerim:
                 <cevabı buraya yaz>
 
@@ -78,7 +77,6 @@ public class RagService {
 
                 Soru: Kayıt yenileme ne zaman yapılır?
                 Yanıt:
-                Soru: Kayıt yenileme ne zaman yapılır?
                 Bu konu hakkında bildiklerim:
                 Kayıt yenileme işlemleri her yıl eylül ayının ilk iki haftasında yapılır.
 
