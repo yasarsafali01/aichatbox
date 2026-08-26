@@ -22,6 +22,7 @@ spring:
         keep-alive: 30m # model belleğe yüklü kalsın, her istekte reload olmasın
         think: false # qwen3/deepseek-r1 gibi "thinking" modellerinde akıl yürütme adımını açar/kapatır
         timeout-seconds: 180 # yanıt üretme çağrısı için timeout
+        models-cache-ttl-seconds: 60 # /rag/models sonucunu bu sürede bir Ollama'dan tazeler
 
       chat:
         options:

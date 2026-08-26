@@ -1,5 +1,8 @@
 package com.yasarsafali.rag_backend.controller;
 
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -34,6 +37,11 @@ public class RagController {
             @RequestBody RagAskRequest request,
             @RequestHeader(value = "X-User-Name", required = false, defaultValue = "") String userName) {
         profanityFilterService.assertClean(request.question());
-        return service.ask(request.question(), userName.trim());
+        return service.ask(request.question(), userName.trim(), request.model());
+    }
+
+    @GetMapping("/models")
+    public List<String> models() {
+        return service.listModels();
     }
 }

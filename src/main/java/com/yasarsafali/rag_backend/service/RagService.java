@@ -7,6 +7,8 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.yasarsafali.rag_backend.exception.InvalidModelException;
+
 @Service
 public class RagService {
 
@@ -36,7 +38,15 @@ public class RagService {
         return chromaClient.add("doc-" + System.currentTimeMillis(), text, embedding);
     }
 
-    public String ask(String question, String userName) {
+    public List<String> listModels() {
+        return ollamaClient.listModels();
+    }
+
+    public String ask(String question, String userName, String model) {
+        if (model != null && !model.isBlank() && !ollamaClient.isKnownModel(model)) {
+            throw new InvalidModelException(model, ollamaClient.listModels());
+        }
+
         List<String> queries = queryExpansionService.expand(question);
 
         Set<String> seen = new LinkedHashSet<>();
@@ -87,7 +97,7 @@ public class RagService {
                 Soru: %s
                 Yanıt:""".formatted(context, question);
 
-        return ollamaClient.generate(prompt);
+        return ollamaClient.generate(prompt, model);
     }
 
     private String address(String userName) {

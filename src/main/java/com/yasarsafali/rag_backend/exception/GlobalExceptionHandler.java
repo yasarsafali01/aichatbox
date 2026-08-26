@@ -12,4 +12,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleProfanity(ProfanityDetectedException e) {
         return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(e.getMessage());
     }
+
+    @ExceptionHandler(InvalidModelException.class)
+    public ResponseEntity<String> handleInvalidModel(InvalidModelException e) {
+        return ResponseEntity.badRequest().contentType(MediaType.TEXT_PLAIN).body(e.getMessage());
+    }
 }
