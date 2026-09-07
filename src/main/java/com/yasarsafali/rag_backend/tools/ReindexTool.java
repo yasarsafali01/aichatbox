@@ -1,6 +1,11 @@
 package com.yasarsafali.rag_backend.tools;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -34,6 +39,7 @@ public class ReindexTool {
 
     private static final int PARALLELISM = 10;
     private static final int DEFAULT_PAGE_SIZE = 1000;
+    private static final Path FAILED_IDS_FILE = Path.of("logs", "reindex-failed-ids.txt");
 
     private static final AtomicInteger processed = new AtomicInteger(0);
     private static final AtomicInteger upserted = new AtomicInteger(0);
@@ -41,9 +47,15 @@ public class ReindexTool {
     private static final AtomicInteger skipped = new AtomicInteger(0);
     private static final AtomicInteger failed = new AtomicInteger(0);
 
-    public static void main(String[] args) {
+    public static void main(String[] rawArgs) {
+        // -Dspring-boot.run.arguments bosluk ile ayirir, ama "0,10" gibi virgullu
+        // tek parca girilirse de calissin diye burada ayrica virgulle de bolunuyor.
+        String[] args = splitArgs(rawArgs);
+
         long startCursor = args.length > 0 ? Long.parseLong(args[0]) : 0L;
         int pageSize = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_PAGE_SIZE;
+
+        resetFailedIdsFile();
 
         ConfigurableApplicationContext context = new SpringApplicationBuilder(RagBackendApplication.class)
                 .web(WebApplicationType.NONE)
@@ -72,12 +84,23 @@ public class ReindexTool {
             }
 
             long elapsedSeconds = (System.currentTimeMillis() - startedAt) / 1000;
+            System.out.println("============================================================");
+            System.out.println("İŞLEM BİTTİ");
             System.out.printf(
-                    "Tamamlandı. işlenen=%d başarılı=%d silindi=%d atlandı=%d hata=%d son_cursor=%d süre=%ds%n",
+                    "işlenen=%d başarılı=%d silindi=%d atlandı=%d hata=%d son_cursor=%d süre=%ds%n",
                     processed.get(), upserted.get(), deleted.get(), skipped.get(), failed.get(), cursor, elapsedSeconds);
+            if (failed.get() > 0) {
+                System.out.println("Hatalı dosya id'leri: " + FAILED_IDS_FILE.toAbsolutePath());
+            }
+            System.out.println("============================================================");
         } finally {
             context.close();
         }
+
+        // Reactor Netty/WebClient baglanti havuzundan artakalan thread'ler
+        // JVM'in kapanmasini engelleyip surecin "asilmis" gibi gorunmesine
+        // sebep olabiliyor; islem bittigini kesin belli etmek icin acikca cik.
+        System.exit(0);
     }
 
     private static void processPageInParallel(List<ExternalDocumentModification> items,
@@ -131,9 +154,31 @@ public class ReindexTool {
             }
         } catch (Exception e) {
             failed.incrementAndGet();
+            appendFailedId(item.id());
             printProgress(mod, "HATA: " + e.getMessage());
         } finally {
             processed.incrementAndGet();
+        }
+    }
+
+    private static void resetFailedIdsFile() {
+        try {
+            Files.createDirectories(FAILED_IDS_FILE.getParent());
+            Files.writeString(FAILED_IDS_FILE, "", StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            System.err.println("Uyarı: " + FAILED_IDS_FILE + " sıfırlanamadı: " + e.getMessage());
+        }
+    }
+
+    // Hatali dosyanin id'sini aninda diske ekler (calisma ortada kesilse bile
+    // o ana kadarki hatalar kaybolmasin diye), boylece en sonda bu dosyadaki
+    // id'ler /sync/import gibi bir akista tekrar denenebilir.
+    private static synchronized void appendFailedId(String documentId) {
+        try {
+            Files.writeString(FAILED_IDS_FILE, documentId + System.lineSeparator(),
+                    StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            System.err.println("Uyarı: " + documentId + " " + FAILED_IDS_FILE + " dosyasına yazılamadı: " + e.getMessage());
         }
     }
 
@@ -146,5 +191,20 @@ public class ReindexTool {
     private static String truncate(String s, int max) {
         if (s == null) return "";
         return s.length() <= max ? s : s.substring(0, max - 3) + "...";
+    }
+
+    // -Dspring-boot.run.arguments="0 10" bosluga gore ayirir ve dogru sekilde
+    // iki elemanli bir diziyle gelir; ama biri yanlislikla "0,10" gibi virgullu
+    // tek parca girerse de calissin diye burada ek olarak virgulden de bolunuyor.
+    private static String[] splitArgs(String[] rawArgs) {
+        List<String> result = new ArrayList<>();
+        for (String raw : rawArgs) {
+            for (String part : raw.split(",")) {
+                if (!part.isBlank()) {
+                    result.add(part.trim());
+                }
+            }
+        }
+        return result.toArray(new String[0]);
     }
 }

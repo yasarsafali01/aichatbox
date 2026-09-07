@@ -274,6 +274,37 @@ curl -X POST http://localhost:8080/sync/run -H "X-API-Key: <security.api-key.adm
 curl http://localhost:8080/sync/status -H "X-API-Key: <security.api-key.admin değeri>"
 ```
 
+### 7.4 Güncelleme (git pull sonrası yeniden derleme ve yeniden başlatma)
+
+Sunucuda kod güncellendiğinde (`git pull`) uygulamanın yeni değişiklikleri
+yansıtması için jar'ın yeniden derlenip servisin yeniden başlatılması gerekir:
+
+```bash
+cd /opt/aichatbox   # proje kök dizini neredeyse
+
+git pull
+
+./mvnw clean package -DskipTests
+```
+
+Ardından, servis nasıl çalıştırılıyorsa ona göre yeniden başlatın:
+
+```bash
+# systemd servisi olarak çalışıyorsa (bkz. Bölüm 8)
+sudo systemctl restart aichatbox
+sudo systemctl status aichatbox
+```
+
+```bash
+# doğrudan (elle) java -jar ile çalıştırılıyorsa
+pkill -f rag-backend-0.0.1-SNAPSHOT.jar
+nohup java -jar target/rag-backend-0.0.1-SNAPSHOT.jar > logs/app.log 2>&1 &
+```
+
+> **Not:** ChromaDB ve Ollama container/servisleri bu güncellemeden
+> etkilenmez, yeniden başlatılmalarına gerek yoktur — sadece aichatbox
+> uygulamasının kendisi yeniden başlatılır.
+
 ---
 
 ## 8. Kalıcı Servis Olarak Çalıştırma (systemd)

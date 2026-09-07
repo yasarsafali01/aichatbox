@@ -1,0 +1,51 @@
+Chroma koleksiyonlarını boşaltma / doğrulama komutları
+========================================================
+
+Not: Aşağıdaki komutlardaki host (localhost:8000) kendi ortamına göre
+değiştirilmeli (uzak sunucuda çalıştırıyorsan sunucunun kendi üzerinde
+localhost:8000 kalabilir, dışarıdan erişiyorsan gerçek adresi/portu kullan).
+Tenant/database/collection ID'leri application.yml ve application.properties
+içindeki değerlerle aynıdır; onlar değişirse burayı da güncelle.
+
+--------------------------------------------------------
+1) RAG koleksiyonu (application.yml -> chroma.collection)
+   ID: df948403-5a1f-4105-9c18-8a3bc43dbf06
+--------------------------------------------------------
+
+# Silmeden önce kayıt sayısı
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/df948403-5a1f-4105-9c18-8a3bc43dbf06/count"
+
+# Tüm kayıtları sil (koleksiyon kalır, sadece içi boşalır)
+curl -s -X POST "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/df948403-5a1f-4105-9c18-8a3bc43dbf06/delete" \
+  -H "Content-Type: application/json" \
+  -d '{"where": {"documentId": {"$ne": "__never_matches__"}}}'
+
+# Doğrula (0 dönmeli)
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/df948403-5a1f-4105-9c18-8a3bc43dbf06/count"
+
+
+--------------------------------------------------------
+2) Locate koleksiyonu (application.properties -> locate.chroma.collection)
+   ID: b9fab049-0128-4020-80fb-20dea01984ef
+--------------------------------------------------------
+
+# Silmeden önce kayıt sayısı
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/b9fab049-0128-4020-80fb-20dea01984ef/count"
+
+# Tüm kayıtları sil (koleksiyon kalır, sadece içi boşalır)
+curl -s -X POST "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/b9fab049-0128-4020-80fb-20dea01984ef/delete" \
+  -H "Content-Type: application/json" \
+  -d '{"where": {"documentId": {"$ne": "__never_matches__"}}}'
+
+# Doğrula (0 dönmeli)
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/b9fab049-0128-4020-80fb-20dea01984ef/count"
+
+
+--------------------------------------------------------
+İkisini tek seferde çalıştırmak istersen (sırayla, arka arkaya):
+--------------------------------------------------------
+
+curl -s -X POST "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/df948403-5a1f-4105-9c18-8a3bc43dbf06/delete" -H "Content-Type: application/json" -d '{"where": {"documentId": {"$ne": "__never_matches__"}}}' && \
+curl -s -X POST "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/b9fab049-0128-4020-80fb-20dea01984ef/delete" -H "Content-Type: application/json" -d '{"where": {"documentId": {"$ne": "__never_matches__"}}}' && \
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/df948403-5a1f-4105-9c18-8a3bc43dbf06/count" && echo && \
+curl -s "http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/b9fab049-0128-4020-80fb-20dea01984ef/count" && echo
