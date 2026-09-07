@@ -11,6 +11,7 @@ import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentModificationsResponse;
 import com.yasarsafali.rag_backend.dto.external.ExternalDocumentsChangesResponse;
 
 import reactor.core.publisher.Flux;
@@ -42,6 +43,21 @@ public class ExternalApiClient {
                 .header("X-API-Key", apiKey)
                 .retrieve()
                 .bodyToMono(ExternalDocumentsChangesResponse.class)
+                .timeout(Duration.ofSeconds(requestTimeoutSeconds))
+                .block();
+    }
+
+    // =========================
+    // Yeni senkronizasyon senaryosu: cursor artik RFC3339 timestamp degil,
+    // satir bazli tamsayi (row_cursor). items bos donunce daha fazla kayit
+    // yok demektir.
+    // =========================
+    public ExternalDocumentModificationsResponse getModifications(long cursor, int limit) {
+        return webClient.get()
+                .uri(baseUrl + "/documents/modifications?cursor={cursor}&limit={limit}", cursor, limit)
+                .header("X-API-Key", apiKey)
+                .retrieve()
+                .bodyToMono(ExternalDocumentModificationsResponse.class)
                 .timeout(Duration.ofSeconds(requestTimeoutSeconds))
                 .block();
     }

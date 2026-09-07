@@ -1,0 +1,150 @@
+package com.yasarsafali.rag_backend.tools;
+
+import java.io.File;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+
+import com.yasarsafali.rag_backend.RagBackendApplication;
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentChange;
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentModification;
+import com.yasarsafali.rag_backend.dto.external.ExternalDocumentModificationsResponse;
+import com.yasarsafali.rag_backend.service.DocumentIngestionService;
+import com.yasarsafali.rag_backend.service.external.ExternalApiClient;
+import com.yasarsafali.rag_backend.service.locate.LocateIndexingService;
+
+// =========================
+// Bagimsiz calisan tam yeniden indeksleme araci. Web sunucusu ayaklanmadan
+// (WebApplicationType.NONE) ayni Spring context'i kurar, mevcut ingestion
+// servislerini (chunking/embedding/Chroma) oldugu gibi kullanir; sadece
+// External API'den veriyi /documents/modifications uzerinden, RFC3339
+// yerine tamsayi row_cursor ile sayfalar.
+//
+// Calistirma: mvnw spring-boot:run -Dspring-boot.run.main-class=com.yasarsafali.rag_backend.tools.ReindexTool
+// Argumanlar (ikisi de opsiyonel): [baslangicCursor] [sayfaBasinaKayit]
+// Ornek: ... -Dspring-boot.run.arguments="0,1000"
+// =========================
+public class ReindexTool {
+
+    private static final int PARALLELISM = 10;
+    private static final int DEFAULT_PAGE_SIZE = 1000;
+
+    private static final AtomicInteger processed = new AtomicInteger(0);
+    private static final AtomicInteger upserted = new AtomicInteger(0);
+    private static final AtomicInteger deleted = new AtomicInteger(0);
+    private static final AtomicInteger skipped = new AtomicInteger(0);
+    private static final AtomicInteger failed = new AtomicInteger(0);
+
+    public static void main(String[] args) {
+        long startCursor = args.length > 0 ? Long.parseLong(args[0]) : 0L;
+        int pageSize = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_PAGE_SIZE;
+
+        ConfigurableApplicationContext context = new SpringApplicationBuilder(RagBackendApplication.class)
+                .web(WebApplicationType.NONE)
+                .run();
+
+        try {
+            ExternalApiClient apiClient = context.getBean(ExternalApiClient.class);
+            DocumentIngestionService ragIngestionService = context.getBean(DocumentIngestionService.class);
+            LocateIndexingService locateIndexingService = context.getBean(LocateIndexingService.class);
+
+            long cursor = startCursor;
+            long startedAt = System.currentTimeMillis();
+
+            System.out.printf("Reindex başladı. cursor=%d pageSize=%d thread=%d%n", cursor, pageSize, PARALLELISM);
+
+            while (true) {
+                ExternalDocumentModificationsResponse page = apiClient.getModifications(cursor, pageSize);
+                List<ExternalDocumentModification> items = page.items();
+
+                if (items.isEmpty()) {
+                    break;
+                }
+
+                processPageInParallel(items, ragIngestionService, locateIndexingService, apiClient);
+                cursor = page.nextCursor();
+            }
+
+            long elapsedSeconds = (System.currentTimeMillis() - startedAt) / 1000;
+            System.out.printf(
+                    "Tamamlandı. işlenen=%d başarılı=%d silindi=%d atlandı=%d hata=%d son_cursor=%d süre=%ds%n",
+                    processed.get(), upserted.get(), deleted.get(), skipped.get(), failed.get(), cursor, elapsedSeconds);
+        } finally {
+            context.close();
+        }
+    }
+
+    private static void processPageInParallel(List<ExternalDocumentModification> items,
+                                                DocumentIngestionService ragIngestionService,
+                                                LocateIndexingService locateIndexingService,
+                                                ExternalApiClient apiClient) {
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(PARALLELISM, items.size()));
+        try {
+            List<CompletableFuture<Void>> futures = items.stream()
+                    .map(item -> CompletableFuture.runAsync(
+                            () -> handle(item, ragIngestionService, locateIndexingService, apiClient), pool))
+                    .toList();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            pool.shutdown();
+        }
+    }
+
+    private static void handle(ExternalDocumentModification mod,
+                                DocumentIngestionService ragIngestionService,
+                                LocateIndexingService locateIndexingService,
+                                ExternalApiClient apiClient) {
+        ExternalDocumentChange item = mod.toChange();
+        try {
+            // Her durumda once eski chunk'lari temizle (idempotent upsert / silme)
+            ragIngestionService.deleteDocument(item.id());
+            locateIndexingService.deleteDocument(item.id());
+
+            if (item.isDeleted()) {
+                ragIngestionService.indexDeletedMarker(item);
+                locateIndexingService.indexDeletedMarker(item);
+                deleted.incrementAndGet();
+                printProgress(mod, "SİLİNDİ");
+                return;
+            }
+
+            if (!DocumentIngestionService.isSupported(new File(item.originalName()))) {
+                skipped.incrementAndGet();
+                printProgress(mod, "ATLANDI");
+                return;
+            }
+
+            File temp = apiClient.download(item.cdnUrl(), item.originalName());
+            try {
+                ragIngestionService.ingest(temp, item);
+                locateIndexingService.ingest(temp, item);
+                upserted.incrementAndGet();
+                printProgress(mod, "OK");
+            } finally {
+                temp.delete();
+            }
+        } catch (Exception e) {
+            failed.incrementAndGet();
+            printProgress(mod, "HATA: " + e.getMessage());
+        } finally {
+            processed.incrementAndGet();
+        }
+    }
+
+    private static synchronized void printProgress(ExternalDocumentModification mod, String status) {
+        System.out.printf("[row:%d] işlenen=%d başarılı=%d silindi=%d atlandı=%d hata=%d | %-8s %s%n",
+                mod.rowCursor(), processed.get(), upserted.get(), deleted.get(), skipped.get(), failed.get(),
+                status, truncate(mod.originalName(), 70));
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max - 3) + "...";
+    }
+}
