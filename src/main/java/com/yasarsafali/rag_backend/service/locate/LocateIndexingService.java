@@ -52,7 +52,14 @@ public class LocateIndexingService {
         for (LocatableUnit unit : pageUnits) {
             List<String> chunks = chunker.chunk(unit.text());
             for (String chunk : chunks) {
-                List<Float> embedding = embeddingService.embed(chunk);
+                // Embedding'e baslik baglami eklenir (ayni birimin farkli konulu
+                // belgeleri birbirinden ayrissin diye) + nomic-embed-text'in
+                // search_document/search_query asimetrik-arama onekiyle uyumlu
+                // hale getirilir. Chroma'ya yazilan "document" (donen text alani)
+                // ise ham chunk olarak kalir - kullaniciya gosterilen metin
+                // kirletilmez, sadece aramada kullanilan vektor zenginlestirilir.
+                String embeddingInput = "search_document: [" + title + "] " + chunk;
+                List<Float> embedding = embeddingService.embed(embeddingInput);
                 Map<String, Object> metadata = new HashMap<>(baseMetadata);
                 metadata.put("location", unit.location());
                 chromaClient.add(item.id() + "-c" + chunkCount, chunk, embedding, metadata);

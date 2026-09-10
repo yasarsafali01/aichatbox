@@ -43,7 +43,9 @@ public class LocateService {
         Map<String, LocateResult> bestByLocation = new LinkedHashMap<>();
 
         for (String q : queryExpansionService.expand(question)) {
-            List<Float> embedding = embeddingService.embed(q);
+            // Indeksleme tarafinda search_document: onekiyle eslessin diye
+            // (nomic-embed-text'in asimetrik arama konvansiyonu).
+            List<Float> embedding = embeddingService.embed("search_query: " + q);
             LocateChromaClient.QueryResult result = chromaClient.query(embedding, CANDIDATE_POOL_SIZE);
 
             List<String> documents = result.documents();
