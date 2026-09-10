@@ -46,6 +46,7 @@ public class LocateService {
             List<Float> embedding = embeddingService.embed(q);
             LocateChromaClient.QueryResult result = chromaClient.query(embedding, CANDIDATE_POOL_SIZE);
 
+            List<String> documents = result.documents();
             List<Double> distances = result.distances();
             List<Map<String, Object>> metadatas = result.metadatas();
 
@@ -57,6 +58,7 @@ public class LocateService {
                 String fileName = String.valueOf(meta.get("fileName"));
                 String location = String.valueOf(meta.get("location"));
                 String key = fileName + "#" + location;
+                String text = documents.size() > i ? documents.get(i) : "";
 
                 LocateResult existing = bestByLocation.get(key);
                 if (existing == null || distance < existing.distance()) {
@@ -65,6 +67,7 @@ public class LocateService {
                             fileName,
                             location,
                             String.valueOf(meta.get("url")),
+                            text,
                             distance
                     ));
                 }
