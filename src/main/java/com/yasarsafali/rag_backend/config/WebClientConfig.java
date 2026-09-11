@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
@@ -24,7 +25,15 @@ public class WebClientConfig {
                 .pendingAcquireTimeout(Duration.ofSeconds(60))
                 .build();
 
-        HttpClient httpClient = HttpClient.create(provider);
+        // Netty'nin kendi async DNS resolver'i, bazi sunucularin resolv.conf
+        // search-domain ayarlarinda (orn. "search .") "Empty label is not a
+        // legal name" hatasiyla cozumlemeyi tamamen basarisiz kilabiliyor
+        // (bilinen Netty davranisi) - bu ortamda curl/nslookup sorunsuz
+        // calisirken JVM icinden cozumleme patliyordu. JDK'nin kendi
+        // (sistem resolver'ini kullanan, curl ile ayni davranan) blocking
+        // resolver'ina geciyoruz, bu sorunu tamamen atlatir.
+        HttpClient httpClient = HttpClient.create(provider)
+                .resolver(DefaultAddressResolverGroup.INSTANCE);
 
         return WebClient.builder().clientConnector(new ReactorClientHttpConnector(httpClient));
     }
